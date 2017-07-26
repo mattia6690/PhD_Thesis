@@ -2,6 +2,8 @@
 ## Program to Change the LAI Naming Conventions ###
 #### Add Date to Filename ####
 
+setwd("C:/Users/MRossi/Documents/03_Data/03_InSitu/")
+
 ### 01. Read ###
 
 lai.dir.in <-"C:/Users/MRossi/Documents/03_Data/03_InSitu/04_LAI/Raw1"

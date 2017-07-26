@@ -1,6 +1,13 @@
-#################
-# InSituPlotter
-#################
+###########################
+#' 00. In Situ Plot 1 Script
+#'
+#' This script allows plot the outputs of the InSituReader.R script in different ways:
+#' * Linear plots of the time series
+#' * Boxplot representations of those time series
+#' * Combined plot of PRI and NDVI in different wavelengths
+#' 
+###########################
+setwd("C:/Users/MRossi/Documents/03_Data/03_InSitu/")
 
 ### 01. Read ###
 
@@ -134,13 +141,4 @@ ga1<-grid.arrange(g0,g1,g2,g3, nrow=2, ncol=2,top="Comparison of the different P
 
 ggsave(paste0("09_Visualization/PRI_NDVI_Comparison.png"),plot=ga1)
 
-
-1
-
-
-### 03. Plots 2 GPS ####
-
-load("07_FieldCampaign17/02_Station/GPS.RData") # gps
-
-gps %>% filter(Stat=="Domef1500")
 

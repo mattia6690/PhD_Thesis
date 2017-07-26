@@ -1,6 +1,17 @@
 ###########################
-# 00. Initialization
+#' 00. In Situ Reader Script
+#'
+#' This script allows to read the information contained in my field  protocols
+#' It combines multiple procedures containing for extracting:
+#' * Hyperspectral measurements
+#' * LAI measurements
+#' * Biomass estimation
+#' * Soil Water Approximations
+#' * Exact GPS locations
+#' 
 ###########################
+
+setwd("C:/Users/MRossi/Documents/03_Data/03_InSitu/")
 
 ### 01. Read ###
 # State the in- and output directories
