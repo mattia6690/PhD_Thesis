@@ -4,21 +4,43 @@
 #################
 
 library("devtools")
-install_bitbucket("mattia6690/Mrfunctions");library(MRFunctions)
+install_github("mattia6690/Mfunctions");library(Mfunctions)
+loadandinstall("raster")
 loadandinstall("readr")
-loadandinstall("tidyverse")
 loadandinstall("stringr")
 loadandinstall("plotrix")
 loadandinstall("gridExtra")
 loadandinstall("grid")
 loadandinstall("lattice")
-loadandinstall("sf")
+loadandinstall("rgdal")
+loadandinstall("lubridate")
+loadandinstall("ggmap")
+loadandinstall("tidyverse")
+loadandinstall("reshape2")
+loadandinstall("leaflet")
 
 setwd("C:/Users/MRossi/Documents/03_Data/03_InSitu/")
+
+# Define Folder Locations
+# Input
+RemSenFolder1<- "C:/Users/MRossi/Documents/03_Data/01_RemSen/"
+Workspacedir<-"Y:/Workspaces/RosM/"
+SAO_Vegetationdir <-"U:/SAO/SENTINEL-2/SentinelVegetationProducts/"
+SAO_NDVIdir<- paste0(SAO_Vegetationdir,"/S2_NDVIMaps")
+SAO_LAIdir<-  paste0(SAO_Vegetationdir,"/SentinelLAI")
+SAO_Metadir<- paste0(SAO_Vegetationdir,"/Metadata_xmls")
+
+Monalisa_dir<-"C:/Users/MRossi/Documents/03_Data/04_MONALISA/"
+
+InSitu_dir<-"C:/Users/MRossi/Documents/03_Data/03_InSitu/"
+
+# Output
+
 
 # Standard Error Function
 se<-function(x){se<-sd(x,na.rm=T)/length(which(!is.na(x)));return(se)}
 
+# Factor to Numeric
 unfac<-function(x){unf<-as.numeric(as.character(x));return(unf)}
 
 hypindices<-function(input,wavel1,wavel2,stat="NDVI"){
@@ -30,3 +52,21 @@ hypindices<-function(input,wavel1,wavel2,stat="NDVI"){
   return(hyp)
   
 }
+
+Create_availability_table_SA<-function(lst,nms){
+  
+  df<-matrix(ncol=length(names)) %>% as.data.frame %>% setNames(.,names)
+  for(i in lst){
+    
+    str<-str_replace(i,".tif","")
+    str<-str_replace(str,"_masked","")
+    str<-str_split(str,pattern="_")[[1]]
+    str[1]<-str[1] %>% str_split(.,"/") %>% unlist %>% .[2]
+    
+    df<-rbind(df,str)
+    
+  }
+  df<-df[-1,] %>% as.tibble
+  return(df)
+}
+
