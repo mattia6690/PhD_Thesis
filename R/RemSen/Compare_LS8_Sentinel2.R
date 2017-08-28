@@ -1,12 +1,7 @@
-# Initialize IT
-install.packages("devtools");library(devtools)
-install_bitbucket("mattia6690/mrfunctions")
 
-loadandinstall("dplyr")
-loadandinstall("ggplot2")
-loadandinstall("lubridate")
 
-setwd("C:/Users/MRossi/Documents/03_Data/01_RemSen/")
+setwd(RemSenFolder1)
+source("R/00_BaseFunctions.R")
 
 # Read IT
 a<-read.csv("Orbits Sentinel_Landsat.csv",header=T)

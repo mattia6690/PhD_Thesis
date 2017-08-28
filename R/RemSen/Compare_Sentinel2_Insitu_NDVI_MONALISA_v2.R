@@ -1,75 +1,100 @@
 
-install.packages("devtools");library(devtools)
-install_bitbucket("mattia6690/mrfunctions")
-library(MRFunctions)
+### Initialization ####
+setwd("C:/Users/MRossi/Documents/07_Codes/PhD_Thesis")
+source("R/00_BaseFunctions.R")
+setwd(RemSenFolder1)
 
-loadandinstall("rgeos")
-loadandinstall("rgdal")
-loadandinstall("raster")
-loadandinstall("stringr")
-loadandinstall("dplyr")
+### Input ####
+# Read the Shapefiles of the MONALISA Stations
+oi<-readOGR(paste0(Workspacedir,"/01_Data/KML"),"MONALISA Grassland")
+oi_shape<-readOGR(paste0(Workspacedir,"/01_Data/KML"),"MONALISA Grassland Shapefile")
 
-oi<-readOGR("Y:/Workspaces/RosM/01_Data/KML","MONALISA Grassland")
-oi_shape<-readOGR("Y:/Workspaces/RosM/01_Data/KML","MONALISA Grassland Shapefile")
-nms1<-tolower(c(as.character(oi@data$Name),as.character(oi_shape@data$Name)))
-nms<-unique(nms1)
-nms<-nms[-which(nms=="vimef2000")]
+# List the MONALISA Download and Stations
+mnls_lf<-list.files(paste0(Monalisa_dir,"/02_Download/Download_csv_20170405_1547"),full.names = T)
+mnls_lf.short<-list.files(paste0(Monalisa_dir,"/02_Download/Download_csv_20170405_1547"))
 
-lf<-list.files("U:/SAO/SENTINEL-2/SentinelVegetationProducts/S2_NDVIMaps/TPS",pattern=".tif",full.names = T)
-lf.short<-list.files("U:/SAO/SENTINEL-2/SentinelVegetationProducts/S2_NDVIMaps/TPS",pattern=".tif")
+mnls_stations<-do.call(rbind,strsplit(mnls_lf.short, "\\_|\\-| ")) %>% .[,2]
 
-stat_par<-"NDVI_Avg"
-down<-list.files("C:/Users/MRossi/Documents/07_Codes/SOS4R/02_Download/Download_csv_20170405_1547")
-down.full<-list.files("C:/Users/MRossi/Documents/07_Codes/SOS4R/02_Download/Download_csv_20170405_1547",full.names = T)
-supersplit<-do.call(rbind,strsplit(down, "\\_|\\-| "))[,2]
-supersplit<-toupper(supersplit)
+# Retrieve the SAO List of Rasters
+sao_ndvi_lf<-list.files(SAO_NDVIdir,pattern=".tif",full.names = T,recursive = T)
+sao_ndvi_lf.short<-list.files(SAO_NDVIdir,recursive=T,pattern=".tif")
 
-dates<-do.call(rbind,str_split(lf.short,pattern="_"))[,6]
-dates2<-as.Date(dates,format("%Y%m%d"))
+names<-c("Platform","Sensor","Level","GResol","AcqDate","Baseline","Sen2Cor","Tile","ProdDescr","Product","Projection")
+df<-Create_availability_table_SA(sao_ndvi_lf.short,names) %>% 
+  add_column(dir=sao_ndvi_lf)
+df<-df %>% expand(df,nesting(mnls_stations))
+# df<-df %>% add_column(masked_all=NA) %>% 
+#   add_column(masked_site=NA) %>% 
+#   add_column(masked_point=NA) %>% 
+#   add_column(ndvi_site=NA) %>% 
+#   add_column(ndvi_point=NA)
+  
+df<-df %>% filter(Tile=="T32TPS") %>% filter(Projection=="LAEA")
 
-tot<-data.frame(Station=nms)
+sao_ndvi_lf<-df %>% dplyr::select(dir) %>% as.matrix %>% unlist
+sao_dates<- df %>% dplyr::select(matches("AcqDate"))
+
+### Iterations ####
+tot<-data.frame(Station=oi_shape@data$Name)
 lst<-list()
-mskp<-data.frame(Date<-dates,Masked<-NA)
 
-for(i in 1:length(nms)){
+for(i in 1:nrow(tot)){
 
-  r1<- raster(lf[i])
-  t5<- as.array(values(r1))
+  # Transform o Raster Array
+  scene<-sao_ndvi_lf[i]
+  start<-Sys.time()
+  r1<- raster(scene)
+  t5<- values(r1)
   wh_ras<-which(t5<(-10000)|t5>10000)
   t5[wh_ras]<-NA
-  r2<-setValues(r1,as.numeric(t5));rm(r1)
+  r2<-setValues(r1,as.numeric(t5))
+  rm(r1)
+  end<-Sys.time()
+  end-start
+  
+  # Search for the Percentage of masked Pixels
   msk<-round(length(wh_ras)/ncell(r2)*100,2)
-
-  mskp[i,2]<-msk
-
-  date<-dates2[i]
-  date2<-paste(date,"10:15:00")
+  df[i,"masked_all"]<-msk
   print(paste0("#0 Data Loaded - Masked Pixel: ",msk,"%"))
 
   oi2<-spTransform(oi,CRS(projection(r2)))
-  nm_pnt<-oi2@data$Name
+  nm_pnt<-oi2@data$Name %>% tolower
   oi2_shape<-spTransform(oi_shape,CRS(projection(r2)))
-  nm_shape<-oi2_shape@data$Name
+  nm_shape<-oi2_shape@data$Name %>% tolower
   print("#1 Preprocessing DONE")
 
-  t1<- cellFromXY(r2,oi2)
-  r3<- t5[t1]/10000
-  exer.pnt<-cbind.data.frame(tolower(nm_pnt),round(r3,3)) # Combine the Data
+  r3<- t5[cellFromXY(r2,oi2)]/10000
+  exer.pnt<-cbind.data.frame(dir=rep(scene,length(r3)),
+                             mnls_stations=tolower(nm_pnt),
+                             masked_point=round(r3,3)) %>% as.tibble# Combine the Data
+  
+  for(j in 1:length(exer.pnt)){
+    
+    exp<-exer.pnt[j,]
+    
+    df2<-df %>% filter(dir==exp$dir) %>% filter(mnls_stations==exp$mnls_stations) 
+    
+    if(nrow(df2)==0) next
+    
+  }
+  
+  right_join(df,exer.pnt,by=c("dir","mnls_stations"))
   names(exer.pnt)<-c("Station","S2Pixel") # Rename the colmns
-  vimval<-which(exer.pnt$Station=="vimef2000")   # Adjust the Vimef problem (Vimef to back and front and then delete original)
-  d1<-data.frame(Station=c("vimef2000_back","vimef2000_front"),S2Pixel=exer.pnt[vimval,2])
-  exer.pnt<-rbind(exer.pnt,d1)
-  exer.pnt<-exer.pnt[-which(exer.pnt$Station=="vimef2000"),]
+
   print("#2 Pixel Analysis DONE") # Syso
 
   e1<-extract2(r2,oi2_shape)
   e2<-extract2(r2,oi2_shape,weight=T)
-  exer.shp<-cbind.data.frame(tolower(nm_shape),
+  exer.shp<-cbind.data.frame(dir= as.list(tolower(nm_shape)),
                              round(e1$val/10000,3),round(e2$val/10000,3),
                              e1$ncells) # Combine the data
+  
+  right_join(df,exer.shp,by=c("dir","mnls_stations"))
+  
   names(exer.shp)<-c("Station","S2 Shape","S2 Shape W","S2 NCells") # Rename the Coumns
   print("#3 Polygon Analysis DONE") # Syso
 
+  date<-sao_dates %>% as.matrix %>% .[1] %>% paste(.,"10:15:00")
   narr<-array(dim=length(nm_pnt)) # Initialization Array
   for(j in 1:length(narr)){
 
@@ -142,4 +167,14 @@ for(i in 1:length(oi)){
   print(paste(i,"of",length(oi)))
 }
 
+
+
+# nms1<-tolower(c(as.character(oi@data$Name),as.character(oi_shape@data$Name)))
+# nms<-unique(nms1)
+# nms<-nms[-which(nms=="vimef2000")]
+
+# vimval<-which(exer.pnt$Station=="vimef2000")   # Adjust the Vimef problem (Vimef to back and front and then delete original)
+# d1<-data.frame(Station=c("vimef2000_back","vimef2000_front"),S2Pixel=exer.pnt[vimval,2])
+# exer.pnt<-rbind(exer.pnt,d1)
+# exer.pnt<-exer.pnt[-which(exer.pnt$Station=="vimef2000"),]
 
