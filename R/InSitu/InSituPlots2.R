@@ -1,4 +1,4 @@
-###########################
+###########################'
 #' 00. In Situ Plot 1 Script
 #'
 #' This script allows plot the outputs of the InSituReader.R script in different ways:
@@ -6,10 +6,10 @@
 #' * Boxplot representations of those time series
 #' * Combined plot of PRI and NDVI in different wavelengths
 #' 
-###########################
-setwd("C:/Users/MRossi/Documents/03_Data/03_InSitu/")
+###########################'
+source("C:/Users/MRossi/Documents/07_Codes/PhD_Thesis/R/00_BaseFunctions.R")
 
-### 01. Read ###
+### 1. Read Data ----
 
 lf<-list.files(paste0(getwd(),"/07_FieldCampaign17/02_Station/"),pattern=".csv",full.names=T)
 lf_short<-list.files(paste0(getwd(),"/07_FieldCampaign17/02_Station/"),pattern=".csv")
@@ -19,14 +19,13 @@ oi<-do.call(rbind,lapply(lf,read_csv))
 oi$Date<-as.Date(sprintf("%06s",oi$Date),"%d%m%y")
 
 aggr<-oi %>% group_by(FOI,Date,SubID)
+aggr2<-ungroup(aggr)
 
 # Plot configs
 startdsipdate <-as.Date("2017-05-01")
-enddispdate   <-as.Date("2017-08-01")
+enddispdate   <-as.Date("2017-09-01")
 
-### 02. Plots 1 ####
-## 2.1. GEneral Plot of all Metrics ##
-j=stats[2]
+### 2. Plot Data ----
 for(j in stats){
   
   #Denominate
@@ -46,7 +45,7 @@ for(j in stats){
     Se_NDVI=se(NDVI2),
     Se_PRI=se(PRI1))
   
-  ###... and plot
+  ## 2.1. General LinePlot of all Metrics ----
   # LAI
   LAIp<-ggplot(LAI,aes(x=Date,y=Mean,color=SubID))+ ylab(str1)+
     geom_line(size=1.2)+geom_point()+
@@ -78,7 +77,7 @@ for(j in stats){
     scale_x_date(limits=c(startdsipdate,enddispdate))+
     ggtitle(paste(str2,"over time of",j,"Station - 2017"))
 
-  # Boxplots
+  ## 2.2. General BoxPlot of all Metrics ----
   
   LAIbox<-ggplot(All,aes(x=Date,y=LAI,group=Date))+ ylab(str1)+
     geom_boxplot()+
@@ -110,12 +109,7 @@ for(j in stats){
 
 }
 
-
-ggplot(aggr,aes(x=Date,y=LAI,group=FOI))+
-  geom_boxplot()
-
-
-## 2.2 Comparison of PRI and NDVI
+#### 2.3 Comparison of PRI and NDVI ----
 g0<-ggplot(oi,aes(x=PRI2,y=PRI1))+geom_point(alpha=.3)+
   ggtitle("Comparison of Hyperspectral PRI")+
   geom_abline(color="brown",linetype="dotted")+
@@ -138,7 +132,46 @@ g3<-ggplot(oi,aes(x=NDVI4,y=NDVI2))+geom_point(alpha=.3)+
   ylab("NDVI +- 12nm, DECAGON2")+xlab("NDVI +- 30nm & 115nm, SENTINEL2")
 
 ga1<-grid.arrange(g0,g1,g2,g3, nrow=2, ncol=2,top="Comparison of the different PRI/NDVI Computations")
+ggsave(paste0("09_Visualization/PRI_NDVI_Comparison.png"),plot=ga1,width = 10,height = 7.71)
 
-ggsave(paste0("09_Visualization/PRI_NDVI_Comparison.png"),plot=ga1)
+#### 2.4 Heatmap plot of the Pearson Correlation (overall) ----
+aggr3 <-aggr2 %>% dplyr::select(.,c(PRI1:SW_perc)) %>% select(-NDVI3)
+aggr3cor<-aggr3 %>% cor(.,use="pairwise.complete.obs") %>% round(.,2) %>% melt
+
+corplot<-ggplot(data = aggr3cor, aes(x=Var1, y=Var2, fill=value)) + 
+  geom_tile(color = "white")+
+  scale_fill_gradient2(low = "blue", high = "red", mid = "white", 
+                       midpoint = 0, limit = c(-1,1), space = "Lab", 
+                       name="Pearson\nCorrelation") +
+  theme_minimal()+ 
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, 
+                                   size = 12, hjust = 1))+
+  coord_fixed()+
+  ggtitle("Pearson Correlation Heatmap in 2017 Field Campaign")
+
+ggsave(paste0("09_Visualization/Correlation_heatmap_all.png"),width = 10,height = 7.71)
+
+## 2.3 Heatmap plot of the Pearson Correlation (byStation)
+fois<-unique(aggr2$FOI)
+for(foi1 in fois){
+  
+  aggr3 <-aggr2 %>% filter(FOI==foi1) %>% select(.,c(PRI1:SW_perc)) %>% select(-NDVI3)
+  aggr3cor<-aggr3 %>% cor(.,use="pairwise.complete.obs") %>% round(.,2) %>% melt
+  
+  corplot<-ggplot(data = aggr3cor, aes(x=Var1, y=Var2, fill=value)) + 
+    geom_tile(color = "white")+
+    scale_fill_gradient2(low = "blue", high = "red", mid = "white", 
+                         midpoint = 0, limit = c(-1,1), space = "Lab", 
+                         name="Pearson\nCorrelation") +
+    theme_minimal()+ 
+    theme(axis.text.x = element_text(angle = 45, vjust = 1, 
+                                     size = 12, hjust = 1))+
+    coord_fixed()+
+    ggtitle(paste0("Pearson Correlation Heatmap in 2017 Field Campaign ",foi1))
+  
+  ggsave(paste0("09_Visualization/Correlations/Correlation_heatmap_",foi1,".png"),width = 10,height = 7.71)
+  
+}
+
 
 

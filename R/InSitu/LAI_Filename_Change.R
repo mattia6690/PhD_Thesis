@@ -1,8 +1,7 @@
 ###################################################
 ## Program to Change the LAI Naming Conventions ###
 #### Add Date to Filename ####
-
-setwd("C:/Users/MRossi/Documents/03_Data/03_InSitu/")
+source("C:/Users/MRossi/Documents/07_Codes/PhD_Thesis/R/00_BaseFunctions.R")
 
 ### 01. Read ###
 
