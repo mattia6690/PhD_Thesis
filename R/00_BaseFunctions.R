@@ -7,6 +7,7 @@ library("devtools")
 install_github("mattia6690/Mfunctions");library(Mfunctions)
 loadandinstall("raster")
 loadandinstall("readr")
+loadandinstall("rgeos")
 loadandinstall("stringr")
 loadandinstall("plotrix")
 loadandinstall("gridExtra")
@@ -18,8 +19,10 @@ loadandinstall("ggmap")
 loadandinstall("tidyverse")
 loadandinstall("reshape2")
 loadandinstall("leaflet")
+loadandinstall("jsonlite")
+loadandinstall("geojsonio")
 
-setwd("C:/Users/MRossi/Documents/03_Data/03_InSitu/")
+source("C:/Users/MRossi/Documents/07_Codes/ProvinceST_R_Access/R/ProvinceST_StationDownload.R")
 
 # Define Folder Locations
 # Input
@@ -55,7 +58,7 @@ hypindices<-function(input,wavel1,wavel2,stat="NDVI"){
 
 Create_availability_table_SA<-function(lst,nms){
   
-  df<-matrix(ncol=length(names)) %>% as.data.frame %>% setNames(.,names)
+  df<-matrix(ncol=length(nms)) %>% as.data.frame %>% setNames(.,nms)
   for(i in lst){
     
     str<-str_replace(i,".tif","")
