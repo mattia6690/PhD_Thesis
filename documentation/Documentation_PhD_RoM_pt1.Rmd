@@ -1,0 +1,81 @@
+---
+title: Documentation 1 - R-Codes
+author: |
+  |  Mattia Rossi, PhD Student <mattia.rossi@eurac.edu <br>
+  |  EURAC Reserach, Institute for Earth Observation
+  |  Free University of Bolzano, Faculty of Science and Technology
+output:
+  html_document:
+    theme: lumen
+    toc: yes
+    number_sections: true
+    toc_float: 
+      smooth_scroll: false
+---
+
+# General Information
+
+This R Markdown File serves as documentation of the Data produced within the PhD Thesis of Mattia Rossi starting in 11/16 and ending on 11/19.<br>
+The Scripts produced are stored in different Sections for each of the handled dataset in the thesis. These are:
+
+* Ground sampled Data (Fieldwork)
+    + 6 different sites in South Tyrol
+    + Gradients in spatial location, exposition, altitude and site management
+<br>
+* Ground sampled Data (Fixed Station)
+    + Aquired within the [MONALISA Framework](http://monalisasos.eurac.edu/sos/)
+    + 10 Station with constant collection of vegetation metrics beginning in early 2015
+    + NDVI, PRI, Soil TEmperature, Soil Water content measurement
+    + St
+
+Test
+
+# Province Data
+
+This Section describes the access to meteorological Data by the Province of South Tyrol. The Data is hosted on the [Open Access of South Tyrol](http://daten.buergernetz.bz.it/) and openly available.<br>
+The following sections provide an overview on the functions wrapped around a
+[central API](http://dati.retecivica.bz.it/dataset/misure-meteo-e-idrografiche/resource/54aaa7f3-5bd2-4fe5-a242-75dd15c21c49).
+
+## Repository
+
+A [Gitlab Repository](https://gitlab.inf.unibz.it/SOS/ProvinceST_R_Access) with central functionalities to access, view and download the data has been established and can be accessed for registered members by typing. For now the functions are divided in different scripts and not yet written as a R-Package.
+
+```{r, eval =FALSE}
+library(devtools)
+library(git2r)
+library(getPass)
+
+uname<-     "mattia.rossi@eurac.edu"
+password<-  getPass::getPass() 
+
+
+path<-paste0(getwd(),"/Additional/Province")
+clone<- clone(url="https://gitlab.inf.unibz.it/SOS/ProvinceST_R_Access/", path,
+              credentials =git2r::cred_user_pass(uname, password))
+
+```
+
+
+## Functionalities
+
+This repository hosts different functions to access and handle the data provided by the meteorological service of South Tyrol. Once the repository is downloaded the downloaded core codes have to be installed:
+
+```{r,message=FALSE,warning=FALSE}
+
+setwd("~/07_Codes/PhD_Thesis/documentation/Additional/Province")
+source("R/DependingFunctions.R")
+source("R/ProvinceST_StationDownload.R")
+```
+
+As soon as this R-Script is loaded into the Workspace the functions are fully accessable. These contain scripts to simply access the database. The 
+
+```{r}
+
+stations<-.STMeteo_getStation(as="table")
+stations
+```
+
+
+The information about the 
+
+
