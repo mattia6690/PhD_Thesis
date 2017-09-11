@@ -7,7 +7,7 @@ lf<-list.files(SAO_NDVIdir,recursive=T,pattern="tif")
 names<-c("Platform","Sensor","Level","GResol","AcqDate","Baseline","Sen2Cor","Tile","ProdDescr","Product","Projection")
 
 df<-Create_availability_table_SA(lf,names)
-write.csv(df,paste0(RemSenFolder1,"/Sentinel_2A/Availabe_SAO_Products_List.csv"))
+write.csv(df,paste0(RemSenFolder1,"Sentinel/Sentinel_2A/Availabe_SAO_Products_List.csv"))
 
 df_prod<-df %>% select(matches("Product")) %>% unique %>% as.character
 df_date<-df %>% filter(Platform=="S2A") %>% select(matches("AcqDate")) %>% 
