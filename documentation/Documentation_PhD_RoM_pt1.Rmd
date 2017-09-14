@@ -1,16 +1,19 @@
 ---
-title: Documentation 1 - R-Codes
+title: "Documentation 1 - R-Codes"
 author: |
   |  Mattia Rossi, PhD Student <mattia.rossi@eurac.edu <br>
   |  EURAC Reserach, Institute for Earth Observation
   |  Free University of Bolzano, Faculty of Science and Technology
 output:
   html_document:
+    number_sections: yes
     theme: lumen
     toc: yes
-    number_sections: true
-    toc_float: 
-      smooth_scroll: false
+    toc_float:
+      smooth_scroll: no
+  pdf_document:
+    toc: yes
+    keep_tex: yes
 ---
 
 # General Information
@@ -32,50 +35,52 @@ Test
 
 # Province Data
 
-This Section describes the access to meteorological Data by the Province of South Tyrol. The Data is hosted on the [Open Access of South Tyrol](http://daten.buergernetz.bz.it/) and openly available.<br>
-The following sections provide an overview on the functions wrapped around a
-[central API](http://dati.retecivica.bz.it/dataset/misure-meteo-e-idrografiche/resource/54aaa7f3-5bd2-4fe5-a242-75dd15c21c49).
+This Section describes the access to meteorological Data by the Province of South Tyrol. The Data is hosted on the [Open Access of South Tyrol](http://daten.buergernetz.bz.it/) and openly available. These are accessed via R interrogating a [central API](http://dati.retecivica.bz.it/dataset/misure-meteo-e-idrografiche/resource/54aaa7f3-5bd2-4fe5-a242-75dd15c21c49). <br>
+The following sections provide an overview on the base functions and workflows established for evaluating the Data from the Stations of the Province.
+
 
 ## Repository
 
-A [Gitlab Repository](https://gitlab.inf.unibz.it/SOS/ProvinceST_R_Access) with central functionalities to access, view and download the data has been established and can be accessed for registered members by typing. For now the functions are divided in different scripts and not yet written as a R-Package.
+A [Gitlab Repository](https://gitlab.inf.unibz.it/SOS/ProvinceST_R_Access) with central functionalities to access, view and download the data has been established and can be accessed for registered members by typing. For now the functions are divided in different scripts and not yet written as a R-Package. Therefore the Functions are imported directly from the R-Script stored locally.
 
-```{r, eval =FALSE}
-library(devtools)
-library(git2r)
-library(getPass)
-
-uname<-     "mattia.rossi@eurac.edu"
-password<-  getPass::getPass() 
-
-
-path<-paste0(getwd(),"/Additional/Province")
-clone<- clone(url="https://gitlab.inf.unibz.it/SOS/ProvinceST_R_Access/", path,
-              credentials =git2r::cred_user_pass(uname, password))
-
-```
-
-
-## Functionalities
-
-This repository hosts different functions to access and handle the data provided by the meteorological service of South Tyrol. Once the repository is downloaded the downloaded core codes have to be installed:
 
 ```{r,message=FALSE,warning=FALSE}
 
-setwd("~/07_Codes/PhD_Thesis/documentation/Additional/Province")
-source("R/DependingFunctions.R")
-source("R/ProvinceST_StationDownload.R")
+path<-"C:/Users/MRossi/Documents/07_Codes/ProvinceST_R_Access/R/"
+source(paste0(path,"DependingFunctions.R"))
+source(paste0(path,"ProvinceST_StationDownload.R"))
 ```
 
-As soon as this R-Script is loaded into the Workspace the functions are fully accessable. These contain scripts to simply access the database. The 
 
+## Data Overview
+
+This repository hosts different functions to access and handle the data provided by the meteorological service of South Tyrol. Once the repository is downloaded the downloaded core codes have to be in
+As soon as this R-Script is loaded into the Workspace the functions are fully accessable. These contain scripts to simply access the database. <br>
+The station network of the meteorological service of South Tyrol is very widespread. Below central information about the station networ are provided. <br>
+
+The station can be interrogated as follows: <br>
 ```{r}
 
 stations<-.STMeteo_getStation(as="table")
 stations
 ```
 
+The Properties available are: <br>
+```{r}
 
-The information about the 
+stations<-.STMeteo_getallSCODE()
+stations[,1:3]
+```
+
+Additionally the Available Stations can be plotted via the Leaflet packages. Every single point on the map indicates one Station of the meteoroglical service.
+
+```{r,eval=FALSE}
+
+ST<-readOGR("C:/Users/MRossi/Documents/03_Data/Shapes/00_General","SouthTyrol")
+stations_spatial<-.STMeteo_getStation(as="spatial")
+m1<-.STMeteo_plotStation(stations_spatial)
+m1<-m1 %>% addPolygons(data=ST,fill=NA,col="black")
+
+```
 
 

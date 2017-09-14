@@ -242,29 +242,18 @@ div.tocify {
 </div>
 <div id="province-data" class="section level1">
 <h1><span class="header-section-number">2</span> Province Data</h1>
-<p>This Section describes the access to meteorological Data by the Province of South Tyrol. The Data is hosted on the <a href="http://daten.buergernetz.bz.it/">Open Access of South Tyrol</a> and openly available.<br> The following sections provide an overview on the functions wrapped around a <a href="http://dati.retecivica.bz.it/dataset/misure-meteo-e-idrografiche/resource/54aaa7f3-5bd2-4fe5-a242-75dd15c21c49">central API</a>.</p>
+<p>This Section describes the access to meteorological Data by the Province of South Tyrol. The Data is hosted on the <a href="http://daten.buergernetz.bz.it/">Open Access of South Tyrol</a> and openly available. These are accessed via R interrogating a <a href="http://dati.retecivica.bz.it/dataset/misure-meteo-e-idrografiche/resource/54aaa7f3-5bd2-4fe5-a242-75dd15c21c49">central API</a>. <br> The following sections provide an overview on the base functions and workflows established for evaluating the Data from the Stations of the Province.</p>
 <div id="repository" class="section level2">
 <h2><span class="header-section-number">2.1</span> Repository</h2>
-<p>A <a href="https://gitlab.inf.unibz.it/SOS/ProvinceST_R_Access">Gitlab Repository</a> with central functionalities to access, view and download the data has been established and can be accessed for registered members by typing. For now the functions are divided in different scripts and not yet written as a R-Package.</p>
-<pre class="r"><code>library(devtools)
-library(git2r)
-library(getPass)
-
-uname&lt;-     &quot;mattia.rossi@eurac.edu&quot;
-password&lt;-  getPass::getPass() 
-
-
-path&lt;-paste0(getwd(),&quot;/Additional/Province&quot;)
-clone&lt;- clone(url=&quot;https://gitlab.inf.unibz.it/SOS/ProvinceST_R_Access/&quot;, path,
-              credentials =git2r::cred_user_pass(uname, password))</code></pre>
+<p>A <a href="https://gitlab.inf.unibz.it/SOS/ProvinceST_R_Access">Gitlab Repository</a> with central functionalities to access, view and download the data has been established and can be accessed for registered members by typing. For now the functions are divided in different scripts and not yet written as a R-Package. Therefore the Functions are imported directly from the R-Script stored locally.</p>
+<pre class="r"><code>path&lt;-&quot;C:/Users/MRossi/Documents/07_Codes/ProvinceST_R_Access/R/&quot;
+source(paste0(path,&quot;DependingFunctions.R&quot;))
+source(paste0(path,&quot;ProvinceST_StationDownload.R&quot;))</code></pre>
 </div>
 <div id="functionalities" class="section level2">
 <h2><span class="header-section-number">2.2</span> Functionalities</h2>
-<p>This repository hosts different functions to access and handle the data provided by the meteorological service of South Tyrol. Once the repository is downloaded the downloaded core codes have to be installed:</p>
-<pre class="r"><code>setwd(&quot;~/07_Codes/PhD_Thesis/documentation/Additional/Province&quot;)
-source(&quot;R/DependingFunctions.R&quot;)
-source(&quot;R/ProvinceST_StationDownload.R&quot;)</code></pre>
-<p>As soon as this R-Script is loaded into the Workspace the functions are fully accessable. These contain scripts to simply access the database</p>
+<p>This repository hosts different functions to access and handle the data provided by the meteorological service of South Tyrol. Once the repository is downloaded the downloaded core codes have to be in As soon as this R-Script is loaded into the Workspace the functions are fully accessable. These contain scripts to simply access the database. <br> The station network of the meteorological service of South Tyrol is very widespread. Below central information about the station networ are provided. <br></p>
+<p>The station can be interrogated as follows: <br></p>
 <pre class="r"><code>stations&lt;-.STMeteo_getStation(as=&quot;table&quot;)
 stations</code></pre>
 <pre><code>## # A tibble: 103 x 8
@@ -282,6 +271,28 @@ stations</code></pre>
 ## 10 61720WS     Abtei Piz Pisciadù Badia Cima Pisciadù
 ## # ... with 93 more rows, and 5 more variables: NAME_L &lt;chr&gt;, NAME_E &lt;chr&gt;,
 ## #   ALT &lt;dbl&gt;, LONG &lt;dbl&gt;, LAT &lt;dbl&gt;</code></pre>
+<p>The Properties available are: <br></p>
+<pre class="r"><code>stations&lt;-.STMeteo_getallSCODE()
+stations[,1:3]</code></pre>
+<pre><code>##       TYPE                  DESC_D                DESC_I
+## 1       LT          Lufttemperatur Temperatura dell´aria
+## 2       WR            Windrichtung   Direzione del vento
+## 3       WG     Windgeschwindigkeit    Velocità del vento
+## 4   WG.BOE Windgeschwindigkeit Böe      Velocitá raffica
+## 5       LF    relative Luftfeuchte      Umidità relativa
+## 16      HS              Schneehöhe Altezza neve al suolo
+## 55       Q              Durchfluss               Portata
+## 56       W             Wasserstand   Livello idrometrico
+## 57      WT        Wassertemperatur     Temperatura acqua
+## 192      N            Niederschlag        Precipitazioni
+## 197 LD.RED               Luftdruck Pressione atmosferica
+## 198     GS         Globalstrahlung   Radiazione globale 
+## 199     SD       Sonnenscheindauer  Durata soleggiamento</code></pre>
+<p>Additionally the Available Stations can be plotted via the Leaflet packages. Additionally to the</p>
+<pre class="r"><code>ST&lt;-readOGR(&quot;C:/Users/MRossi/Documents/03_Data/Shapes/00_General&quot;,&quot;SouthTyrol&quot;)
+stations_spatial&lt;-.STMeteo_getStation(as=&quot;spatial&quot;)
+m1&lt;-.STMeteo_plotStation(stations_spatial)
+m1&lt;-m1 %&gt;% addPolygons(data=ST,fill=NA,col=&quot;black&quot;)</code></pre>
 </div>
 </div>
 
