@@ -73,3 +73,33 @@ Create_availability_table_SA<-function(lst,nms){
   return(df)
 }
 
+
+.getheader<-function(table){table %>% slice(.,head1) %>% return(.)}
+.remheader<-function(table){table %>% slice(5:nrow(.)) %>% setNames(.,.[1,]) %>% slice(2:nrow(.)) %>% return(.)}
+Insitu.init<-function(table,tableColumn,pattern,names){
+  
+  lst<-list()
+  header<-.getheader(table)
+  stat  <-header$X2[1]
+  dat   <-header$X2[2] %>% as.numeric %>% sprintf("%06d", .)
+  # Create Filename
+  table2  <-.remheader(table)
+  tab<-table2[table2$Type==pattern,]
+  tab<-tab[,which(grepl("ID",colnames(tab)))]
+  
+  
+  # Create the Matrix
+  field_mat1<-matrix(ncol=length(names),
+                     nrow=(length(tableColumn)*nrow(tab))) %>%  as.data.frame
+  colnames(field_mat1)<-names
+  
+  field_mat1$FOI   <-stat
+  field_mat1$Date  <-dat
+  field_mat1$SubID <-rep(tableColumn,each=nrow(tab))
+  field_mat1$Sample<-rep(seq(1,nrow(tab),1),times=length(tableColumn))
+  lst[[1]]<-field_mat1
+  lst[[2]]<-tab
+  
+  return(lst)
+}
+
