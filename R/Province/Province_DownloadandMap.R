@@ -1,25 +1,26 @@
+# 1. Initialization ----
 
-#########################'
-#### 1.Input ############
-#########################'
+source("R/BaseFunctions.R")
+install.packages("C:/Users/MRossi/Documents/07_Codes/MonalisR",repos=NULL,type="source")
+library("MonalisR")
 
-source("R/00_BaseFunctions.R")
 
-oi<-readOGR(paste0(Workspacedir,"/01_Data/KML"),"MONALISA Grassland")
+# 2. Input ----
+
+oi<-readOGR(paste0(WorkspaceDir,"/01_Data/KML"),"MONALISA Grassland")
 ST<-readOGR("C:/Users/MRossi/Documents/03_Data/Shapes/00_General","SouthTyrol")
-
-oi_mat<-readOGR(paste0(Workspacedir,"/01_Data/KML"),"Mattia_Stations_PhD")
+oi_mat<-readOGR(paste0(WorkspaceDir,"/01_Data/KML"),"Mattia_Stations_PhD")
 oi_mat_c<-coordinates(oi_mat)
 
-#########################'
-#### 2.Process ##########
-#########################'
 
-stat<-.STMeteo_buffer(oi,buffer=10000,dist=T)
+# 3. Tidy ----
+
+stat<-buffmeteo(oi,buffer=10000,dist=T)
 stat1<- stat$Province%>% as.character %>% unique
-scode<-.STMeteo_getallSCODE()$TYPE
+scode<-getMeteoSensor(onlySensor = T)
 
-stats<-.STMeteo_getStation()
+stats<-getMeteoStat()
+stats_spatial<-getMeteoStat(format="spatial")
 stats<-stats[which(is.element(stats$SCODE,stat1)),]
 
 names(stat)<-c("SCODE","Shape","Distance")
@@ -38,17 +39,13 @@ for(i in 1:nrow(u1)){
   
 }
 
-#########################'
-#### 3.Plot #############
-#########################'
+
+# 4. Plot in Leaflet ----
 
 ico1<-awesomeIcons(icon = 'ios-close',iconColor = 'black',library = 'ion',markerColor = "darkblue")
 ico2<-awesomeIcons(icon = 'ios-close',iconColor = 'black',library = 'ion',markerColor = "orange")
 
-
-
-m<-.STMeteo_plotStation(.STMeteo_getStation(as="table"),
-                        addPoints=oi,addBuff=T,widthBuff=10000)
+m<-plotMeteoLeaflet(addPoints=oi,addBuff=T,widthBuff=10000)
 m<-m %>% addAwesomeMarkers(perStat$LONG,perStat$LAT,icon=ico1,
                            popup=paste("Code:",perStat$SCODE,"<br>",
                                        "Name GER:",perStat$NAME_D,"<br>",
@@ -61,18 +58,21 @@ m<-m %>% addLegend(position = 'topright',colors = c("dodgerblue","blue","red","o
                             "MONALISA Stations","MONALISA Stations + Fieldwork"),opacity=1) 
 m %>% addScaleBar() 
 
-#########################'
-#### 4.Download #########
-#########################'
 
-datestart = "2017-01-01 00:00"
+# 5. Download the Data ----
+
+datestart = "2015-01-01 00:00"
 dateend = "2017-08-31 00:00"
-path<-"C:/Users/MRossi/Documents/03_Data/06_Province/Download/"
+path<-paste0(ProviceDir,"Download/")
+
+stat1<-perStat$SCODE
+
+scode<-c("LT","N")
 
 for(i in 1:length(stat1)){
   for(j in 1:length(scode)){
     
-    pvcdw<-.STMeteo_download(station_code = stat1[i],
+    pvcdw<-downloadMeteo(station_code = stat1[i],
                              sensor_code = scode[j],
                              datestart = datestart,
                              dateend = dateend,
@@ -82,6 +82,57 @@ for(i in 1:length(stat1)){
     print(paste(i,"of",length(stat1),"stations & ",j,"of",length(scode),"Sensors"))
   }
 }
+
+
+# 6. Visualize the Timesteps ----
+
+stats<- as.character(perStat$Shape)
+lf2<-listdownload(path)
+
+for(i in stats){
+  
+  stat<-perStat %>% filter(Shape==i)
+  lf2<- lf2 %>% filter(CODE==stat$SCODE)
+  
+  for(j in 1:nrow(lf2)){
+    
+    load(lf2$Path[j]) #DAT
+    
+    DAT[["Date"]]<- as.Date(DAT$TimeStamp)
+    sensor<-DAT$Sensor %>% unique
+    
+    if(sensor=="LT"){
+      
+      DAT2 <- DAT %>% group_by(Date) %>% 
+        summarize(min=min(Value),mean=mean(Value),max=max(Value))
+      
+      g1<-ggplot(DAT2,aes(x=Date,y=mean))+
+        geom_line(col="red")+
+        geom_ribbon(aes(ymin=min,ymax=max),alpha=.2)+
+        ggtitle(paste("Temperature at Station",unique(DAT$Station),"in",year(DAT2$Date) %>% unique))
+      
+    }
+    
+    if(sensor=="N"){
+      
+      DAT2 <- DAT %>% group_by(Date) %>% 
+        summarize(prec=sum(Value))
+      
+      g1<-ggplot(DAT2,aes(x=Date,y=prec))+
+        geom_bar(stat="identity",color=NA,fill="blue")+
+        ggtitle(paste("Precipitation at Station",unique(DAT$Station),"in",year(DAT2$Date) %>% unique))
+      
+    }
+    
+    start<-str_replace_all(DAT$Date,"[-]","")
+    ggsave(g1,filename = paste0(ProviceDir,"/Plots/",
+                             DAT$Station %>% unique,"_",
+                             DAT$Sensor %>% unique,"_",
+                             min(start),"_",max(start),".png"),device="png")
+  }
+}
+
+# 7. Harmonoie for the Metrics ----
 
 
 
