@@ -7,11 +7,11 @@ source("R/BaseFunctions.R")
 # 2. Input ----
 #* 2.1 Read the MONALISA Data ----
 
-oi<-readOGR(paste0(Workspacedir,"01_Data/KML"),"MONALISA Grassland")
-oi_shape<-readOGR(paste0(Workspacedir,"01_Data/KML"),"MONALISA Grassland Shapefile")
+oi<-readOGR(paste0(WorkspaceDir,"01_Data/KML"),"MONALISA Grassland")
+oi_shape<-readOGR(paste0(WorkspaceDir,"01_Data/KML"),"MONALISA Grassland Shapefile")
 
-mnls_lf<-list.files(paste0(Monalisa_dir,"02_Download/Download_csv_20170405_1547"),full.names = T)
-mnls_lf.short<-list.files(paste0(Monalisa_dir,"02_Download/Download_csv_20170405_1547"))
+mnls_lf<-list.files(paste0(MonalisaDir,"02_Download/Download_csv_20170405_1547"),full.names = T)
+mnls_lf.short<-list.files(paste0(MonalisaDir,"02_Download/Download_csv_20170405_1547"))
 mnls_stations<-do.call(rbind,strsplit(mnls_lf.short, "\\_|\\-| ")) %>% .[,2]
 
 #* 2.2 Read the Sentinel Data ----
@@ -23,6 +23,7 @@ sao_ndvi_lf.short<-list.files(SAO_NDVIdir,recursive=T,pattern=".tif")
 
 sen2tile<-"T32TPS"
 sen2proj<-"LAEA"
+NArange <-c(-10000,10000)
 
 
 # 3. Tidy ----
@@ -31,7 +32,7 @@ sen2proj<-"LAEA"
 df<-S2_avail(sao_ndvi_lf.short,sen2names) %>% add_column(dir=sao_ndvi_lf)
 
 df<-df %>% expand(df,nesting(mnls_stations)) %>% 
-  filter(Tile==sen2tile) %>% 
+  #filter(Tile==sen2tile) %>% 
   filter(Projection==sen2proj)
 
 sao_dates<-df %>%filter(AcqDate>2017) %>%
@@ -45,14 +46,21 @@ sao_ndvi_lf<- sao_dates %>% as.matrix %>% unlist %>% unique
 # Central For Iteration
 for(i in 1:length(sao_ndvi_lf)){
 
-  # Load and Mask
+  # Load Subset
   start<-Sys.time()
   scene<-sao_ndvi_lf[i]
-  
-  r2<-rasterNA(r1,c(-10000,10000))
   df_scene<-df %>% filter(dir==scene)
   df_wh<-df_scene %>% rownames %>% as.array
   
+  # Construct the new raster
+  r1<- raster(scene)
+  t5<- values(r1)
+  wh_ras<-which(t5<NArange[1]|t5>NArange[2])
+  t5[wh_ras]<-NA
+  r2<-setValues(r1,as.numeric(t5))
+  rm(r1)
+  
+  # Mask and Print
   msk<-round(length(wh_ras)/ncell(r2)*100,2)
   df[df_wh,"masked_tot"]<-msk
   print(paste0("#0 Data Loaded - Masked Pixel: ",msk,"%"))
@@ -83,43 +91,48 @@ for(i in 1:length(sao_ndvi_lf)){
   print("#3 Shape Analysis DONE")
   
   # Join Point and Shapefile Outcome
-  end<-Sys.time()
-  diff<-round(end-start,2)
   jn<-right_join(eP,eS3,by="mnls_stations")
   metricsList[[i]]<-jn
+  end<-Sys.time()
+  diff<-round(end-start,2)
   print(paste0("Iteration ",i," of ",length(sao_ndvi_lf)," DONE [",diff," s]"))
 }
 
 # 5. Tidy Metrics ----
 
-# Create Plottable Data Frame
+# Create and Save Data Frame
 ml<-do.call(rbind,metricsList)
-ml2<-ml %>% filter(mnls_stations=="vimes1500")
-ml2$date<-S2_dir2date(ml2$dir.x)
-ml2$nas<-ml2$Original_Nas/ml2$Original_Ncells %>% `/`(100)
+saveRDS(ml, paste0(MetricsDir,"Sentinel2_NDVI_metrics.rds"))
 
 # 6. Plot Metrics ----
 
 #* 6.1 GGplots ----
-ggplot(ml2,aes(date,Weigted_Mean))+
-  geom_point(aes(y=Original_Mean,color="Shape All"))+
-  geom_point(aes(color="Shape Weighted"))+
-  geom_smooth(aes(color="Shape Weighted"),linetype=3,se=F)+
-  geom_point(aes(y=as.numeric(Points),color="Point"))+
-  scale_x_date()+
-  ylab("NDVI value")+xlab("Date")+
-  labs(title="Sentinel 2 NDVI Mean in 2017")+
-  scale_colour_manual(breaks=c("Shape All","Shape Weighted","Point"),
-                      values=c("red","cyan","blue"))
+
+ml.unq<-ml$mnls_stations %>% unique
+
+for(i in ml.unq){
+  
+  ml2<-ml %>% filter(mnls_stations==i)
+  ml2$date<-S2_dir2date(ml2$dir.x)
+  ml2$nas <-ml2$Original_Nas/ml2$Original_Ncells %>% `/`(100)
+  
+  g1<-ggplot(ml2,aes(date,Weigted_Mean))+
+    geom_point(aes(y=Original_Mean,color="Shape All"))+
+    geom_point(aes(color="Shape Weighted"))+
+    geom_smooth(aes(color="Shape Weighted"),linetype=3,se=F)+
+    geom_point(aes(y=as.numeric(Points),color="Point"))+
+    scale_x_date()+
+    ylab("NDVI value")+xlab("Date")+ylim(0,10000)+
+    labs(title=paste0("Sentinel 2 NDVI Mean, 2017 in Station ",i))+
+    scale_colour_manual(breaks=c("Shape All","Shape Weighted","Point"),
+                        values=c("red","cyan","blue"))
+  
+  ggsave(g1,filename = paste0(sentineldir,"Metrics/S2_NDVI_2017_",i,".png"),device="png")
+  
+}
 
 #* 6.2 Levelplot alternative ----
 
-# Alternative way to plot Raster with 
-colr <- colorRampPalette(brewer.pal(11, 'RdYlBu'))
-colr <- colorRampPalette(c("blue","chocolate","green"))
-rasterVis::levelplot(r2,margin=F, colorkey=list(space='bottom'),  
-          par.settings=list(axis.line=list(col='transparent')),
-          scales=list(draw=T),            # suppress axis labels
-          col.regions=colr,
-          at=seq(-10000, 10000, len=1000),main="Test")
+lp(r2)
+
 
