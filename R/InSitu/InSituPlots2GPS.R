@@ -12,7 +12,7 @@ source("C:/Users/MRossi/Documents/07_Codes/PhD_Thesis/R/00_BaseFunctions.R")
 
 options(digits=10)
 
-load("07_FieldCampaign17/02_Station/GPS.RData") # gps
+load(paste0(InSitu_dir,"07_FieldCampaign17/02_Station/GPS.RData")) # gps
 
 stats<-gps$Stat %>% unique
 griddir<-"C:/Users/MRossi/Documents/08_Temp/04_Shapefile"
@@ -48,7 +48,8 @@ for (i in 1:length(stats)){
     geom_polygon(aes(x=long,y=lat,group=id),data=grid10, color ="yellow", fill =NA)+
     geom_polygon(aes(x=long,y=lat,group=id),data=grid20, color ="cyan", fill =NA)
   
-  ggsave(g1,filename = paste0("09_Visualization/GPS/Fieldwork Points in ",stat1,".png"))
+  fname<-paste0(InSitu_dir,"09_Visualization/GPS/FPoints_",stat1,".png")
+  ggsave(g1,filename = fname )
   
 }
 

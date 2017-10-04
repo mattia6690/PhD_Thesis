@@ -11,8 +11,8 @@ source("C:/Users/MRossi/Documents/07_Codes/PhD_Thesis/R/00_BaseFunctions.R")
 
 ### 1. Read Data ----
 
-lf<-list.files(paste0(getwd(),"/07_FieldCampaign17/02_Station/"),pattern=".csv",full.names=T)
-lf_short<-list.files(paste0(getwd(),"/07_FieldCampaign17/02_Station/"),pattern=".csv")
+lf<-list.files(paste0(InSitu_dir,"/07_FieldCampaign17/02_Station/"),pattern=".csv",full.names=T)
+lf_short<-list.files(paste0(InSitu_dir,"/07_FieldCampaign17/02_Station/"),pattern=".csv")
 
 stats<-do.call(rbind,str_split(lf_short,"_"))[,1]
 oi<-do.call(rbind,lapply(lf,read_csv))
@@ -25,14 +25,15 @@ aggr2<-ungroup(aggr)
 startdsipdate <-as.Date("2017-05-01")
 enddispdate   <-as.Date("2017-09-01")
 
+
 ### 2. Plot Data ----
 for(j in stats){
   
   #Denominate
-  str1<-"LAI"
-  str2<-"Biomass"
-  str3<-"Soil Water"
-  str4<-"NDVI"
+  str1 <-"LAI"
+  str2 <-"Biomass"
+  str3 <-"Soil Water"
+  str4 <-"NDVI"
   str4b<-"PRI"
   
   #Aggregate...
@@ -173,5 +174,50 @@ for(foi1 in fois){
   
 }
 
+## 3. Boxplot with all Stations combined ----
+str<-"LAI over time"
+tst<-ggplot()+
+  geom_smooth(data=aggr,aes(x=Date,y=LAI,color=FOI),se=F)+
+  geom_boxplot(data=aggr,aes(x=Date,y=LAI,group=interaction(Date,FOI),fill = FOI))+ 
+  scale_x_date()+
+  ggtitle(paste0(str," - Field Campaign 2017"))
+ggsave(paste0(InSitu_dir,"09_Visualization/Station_Combo/",str,".png"),
+       plot=tst,device="png",width = 15.2,height = 7.71)
 
+str<-"NDVI over time"
+tst<-ggplot()+
+  geom_smooth(data=aggr,aes(x=Date,y=NDVI1,color=FOI),se=F)+
+  geom_boxplot(data=aggr,aes(x=Date,y=NDVI1,group=interaction(Date,FOI),fill = FOI))+ 
+  scale_x_date()+
+  ggtitle(paste0(str," - Field Campaign 2017"))
+ggsave(paste0(InSitu_dir,"09_Visualization/Station_Combo/",str,".png"),
+       plot=tst,device="png",width = 15.2,height = 7.71)
 
+str<-"Wet Biomass Extraction over time"
+tst<-ggplot()+
+  geom_smooth(data=aggr,aes(x=Date,y=BioWet,color=FOI),se=F)+
+  geom_boxplot(data=aggr,aes(x=Date,y=BioWet,group=interaction(Date,FOI),fill = FOI))+ 
+  scale_x_date()+
+  ggtitle(paste0(str," - Field Campaign 2017"))
+ggsave(paste0(InSitu_dir,"09_Visualization/Station_Combo/",str,".png"),
+       plot=tst,device="png",width = 15.2,height = 7.71)
+
+str<-"Biomass Water Percentage over Time"
+tst<-ggplot()+
+  geom_smooth(data=aggr,aes(x=Date,y=BioWatRawPerc,color=FOI),se=F)+
+  geom_boxplot(data=aggr,aes(x=Date,y=BioWatRawPerc,group=interaction(Date,FOI),fill = FOI))+ 
+  scale_x_date()+
+  ggtitle(paste0(str," - Field Campaign 2017"))
+ggsave(paste0(InSitu_dir,"09_Visualization/Station_Combo/",str,".png"),
+       plot=tst,device="png",width = 15.2,height = 7.71)
+
+str<-"Soil Water Content over Time"
+tst<-ggplot()+
+  geom_smooth(data=aggr,aes(x=Date,y=SW_perc,color=FOI),se=F)+
+  geom_boxplot(data=aggr,aes(x=Date,y=SW_perc,group=interaction(Date,FOI),fill = FOI))+ 
+  scale_x_date()+
+  ggtitle(paste0(str," - Field Campaign 2017"))
+ggsave(paste0(InSitu_dir,"09_Visualization/Station_Combo/",str,".png"),
+       plot=tst,device="png",width = 15.2,height = 7.71)
+
+  

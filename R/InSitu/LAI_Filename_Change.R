@@ -1,16 +1,16 @@
-###################################################
-## Program to Change the LAI Naming Conventions ###
-#### Add Date to Filename ####
-source("C:/Users/MRossi/Documents/07_Codes/PhD_Thesis/R/00_BaseFunctions.R")
+# 1. Initialization ----
+source("R/00_BaseFunctions.R")
 
-### 01. Read ###
 
-lai.dir.in <-"C:/Users/MRossi/Documents/03_Data/03_InSitu/04_LAI/Raw1"
-lai.dir.out<-"C:/Users/MRossi/Documents/03_Data/03_InSitu/04_LAI/"
+# 2. Input ----
+
+lai.dir.in <-dirlai %>% paste0("/Raw1/")
+lai.dir.out<-dirlai
 
 lf<- list.files(lai.dir.in)
 
-### 02. Process ###
+
+# 3. Process ----
 
 for(i in 1:length(lf)){
   

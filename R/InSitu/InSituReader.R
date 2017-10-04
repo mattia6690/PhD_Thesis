@@ -1,35 +1,22 @@
-###########################
-#' 00. In Situ Reader Script
-#'
-#' This script allows to read the information contained in my field  protocols
-#' It combines multiple procedures containing for extracting:
-#' * Hyperspectral measurements
-#' * LAI measurements
-#' * Biomass estimation
-#' * Soil Water Approximations
-#' * Exact GPS locations
-#' 
-###########################
-source("C:/Users/MRossi/Documents/07_Codes/PhD_Thesis/R/00_BaseFunctions.R")
+# 1. Initialization ----
+source("R/BaseFunctions.R")
 
-### 01. Read ###
-# State the in- and output directories
-dirlai<-paste0(InSitu_dir,"/04_LAI")
-dirhyp<-paste0(InSitu_dir,"/05_HyperSpec")
-dirstat<-paste0(InSitu_dir,"/07_FieldCampaign17/00_Raw")
 
-# Read the csv tables with the Information per station
+# 2. Tidy ----
+
 head1<-seq(1,4,1) # Header Position
 lf<-list.files(dirstat,pattern =".csv")
 lf_full<-list.files(dirstat,pattern =".csv",full.names = T)
 
-### 02. Plots ###
-lstall<-list()
-cblat<-list();cblon<-list();allISgps<-list()
+
+# 3. Computation ----
+
 for(i in 1:length(lf_full)){
   
-  itab_raw <-read_csv(lf_full[i],col_names = F)
-  itab<-InSitu.remhead(itab_raw)
+  #* 3.1 Input and Start ----
+  
+  itab_raw <-read_csv(lf_full[i],col_names = F,col_types = cols())
+  itab<-.remheader(itab_raw)
   
   # Station and Data
   nms1 <- itab %>% select(contains("ID")) %>% names
@@ -40,18 +27,14 @@ for(i in 1:length(lf_full)){
   lnames<-c("LAI","SEL","ACF","DIFN","MTA","SEM","SMP")
   bnames<-c("BioWet","BioDryRaw","BioWatRawPerc","MeanErr")
   wnames<-c("SW_perc")
-
   
   #GPS Extraction
   gpsIS<-itab %>% filter(Type=="Location") %>% select(starts_with("ID")) %>% 
     t %>% as.data.frame %>% setNames(c("Lat","Lon")) %>% rownames_to_column(var="SubID") %>% 
     add_column(Sensor="InSitu",.before=T) %>% add_column(Date=dat,.before=T) %>% add_column(Stat=stat,.before=T)
   
+  #* 3.2 Hyperspectral ----
   
-  ###################
-  # 01. Hyperspectral
-  ###################
-  print("Hyperspectral")
   init<-Insitu.init(table=itab_raw,tableColumn = nms1,
                    pattern="Hyperspectral",
                    names=c(cnames,hnames))
@@ -120,26 +103,25 @@ for(i in 1:length(lf_full)){
     setNames(c("SubID","Lat","Lon")) %>% 
     add_column(Sensor="Hyper",.before=T) %>% add_column(Date=dat,.before=T) %>% add_column(Stat=stat,.before=T)
 
-  ############
-  # 02.LAI
-  ############
-  print("LAI")
+  #* 3.3 LAI ----
+  
   init<-Insitu.init(table=itab_raw,tableColumn = nms1,
                    pattern="Leaf Area",
                    names=c(cnames,lnames))
   
   field_mat2<-init[[1]]
   lai_tab<-init[[2]]
+  date1<-field_mat2 %>% select(Date) %>% unique %>% as.character
   
   gpsLAILat<-array(dim=ncol(lai_tab)); gpsLAILon<-array(dim=ncol(lai_tab));gpsLAI<-list()
   # Loop through the files and insert the data in the matrix @ given place
   for(j in 1:ncol(lai_tab)){
     
     laID   <- names(lai_tab)[j]
-    lai_nm <- lai_tab %>% select(.,matches(laID)) %>% as.matrix %>% paste0(dat,"_",.,".csv")
-    lai_lf <- dirlai %>% list.files %>% .[which(is.element(.,lai_nm))]
+    lai_nm <- lai_tab %>% select(.,matches(laID)) %>% as.matrix %>% paste0(date1,"_",.,".csv")
+    lai_lf <- dirlai %>% list.files(.) %>% .[which(is.element(.,lai_nm))]
 
-    if(length(lai_lf)==0){print("next LAI");next}
+    if(length(lai_lf)==0){next}
     
     for (k in 1:length(lai_lf)){
       
@@ -166,10 +148,9 @@ for(i in 1:length(lf_full)){
       add_column(Sensor="LAI",.before=T) %>% add_column(Date=dat,.before=T) %>% add_column(Stat=stat,.before=T)
   }
   
-  ###############
-  # 03.Biomass
-  # ###############
-  print("Biomass")
+  
+  #* 3.4 Biomass ----
+  
   init<-Insitu.init(table=itab_raw,tableColumn = nms1,
                    pattern="Biomass",
                    names=c(cnames,bnames))
@@ -198,10 +179,8 @@ for(i in 1:length(lf_full)){
   }
 
 
-  ###############
-  # 04.Water
-  ###############
-  print("Water")
+  #* 3.5 Soil Water Content ----
+  
   init<-Insitu.init(table=itab_raw,tableColumn = nms1,
                           pattern="Water",
                           names=c(cnames,wnames))
@@ -213,9 +192,8 @@ for(i in 1:length(lf_full)){
   rd<-wat_tab[1:4,]
   field_mat4$SW_perc<-rd %>% unlist
   
-  ###################################
-  # 04.Merge the datasets and Export
-  ###################################
+  
+  #* 3.6 Merge the Datasets ----
 
   lj<-field_mat1 %>% full_join(.,field_mat2,by = c("FOI", "Date", "SubID", "Sample")) %>% 
     full_join(.,field_mat3,by = c("FOI", "Date", "SubID", "Sample")) %>%
@@ -243,7 +221,9 @@ for(i in 1:length(lf_full)){
   } 
   
   stat1<-stat
-  # List the GPS
+  
+  #* 3.7 GPS Operations ----
+  
   allISgps[[i]]<-list(gpsIS, gpsLAI,gpsH) %>% .[lapply(.,length)>0] %>% do.call(rbind,.)
 
 }
