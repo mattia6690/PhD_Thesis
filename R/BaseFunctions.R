@@ -25,16 +25,19 @@ loadandinstall("rasterVis")
 
 
 #* 2.1 Directory1: Local ----
-RemSenFolder1<- "C:/Users/MRossi/Documents/03_Data/01_RemSen/"
+RemsenDir<- "C:/Users/MRossi/Documents/03_Data/01_RemSen/"
+  sentineldir<-paste0(RemsenDir,"/Sentinel/")
+PhenocamDir<- "C:/Users/MRossi/Documents/03_Data/02_PhenoCam/"
 InSitu_dir<-"C:/Users/MRossi/Documents/03_Data/03_InSitu/"
   dirlai<-paste0(InSitu_dir,"/04_LAI")
   dirhyp<-paste0(InSitu_dir,"/05_HyperSpec")
   dirstat<-paste0(InSitu_dir,"/07_FieldCampaign17/00_Raw")
-Monalisa_dir<-"C:/Users/MRossi/Documents/03_Data/04_MONALISA/"
-ProviceFolder<- "C:/Users/MRossi/Documents/03_Data/06_Province/"
+MonalisaDir<-"C:/Users/MRossi/Documents/03_Data/04_MONALISA/"
+ProviceDir<- "C:/Users/MRossi/Documents/03_Data/05_Province/"
+MetricsDir<- "C:/Users/MRossi/Documents/03_Data/06_Metrics/"
 
 #* 2.2 Directory2: Workspace ----
-Workspacedir<-"Y:/Workspaces/RosM/"
+WorkspaceDir<-"Y:/Workspaces/RosM/"
 
 #* 2.3 Directory3: SAO Server ----
 SAO_Vegetationdir <-"U:/SAO/SENTINEL-2/SentinelVegetationProducts/"
@@ -48,6 +51,11 @@ SAO_Metadir<- paste0(SAO_Vegetationdir,"Metadata_xmls")
 sen2names<-c("Platform","Sensor","Level","GResol","AcqDate","Baseline","Sen2Cor","Tile","ProdDescr","Product","Projection")
 metricsList<-list()
 
+lstall<-list()
+cblat<-list()
+cblon<-list()
+allISgps<-list()
+
 # 4.Central Functions ----
 
 #* 2.1. General Functions ----
@@ -57,6 +65,15 @@ se<-function(x){se<-sd(x,na.rm=T)/length(which(!is.na(x)));return(se)}
 
 #' Convert a Factor to a numeric value
 unfac<-function(x){unf<-as.numeric(as.character(x));return(unf)}
+
+#' Source multiple FIles in Direcory
+sourceDir <- function(path, trace = TRUE, ...) {
+  for (nm in list.files(path, pattern = "\\.[RrSsQq]$")) {
+    if(trace) cat(nm,":")           
+    source(file.path(path, nm), ...)
+    if(trace) cat("\n")
+  }
+}
 
 #* 2.2. InSitu Functions ----
 
@@ -127,7 +144,7 @@ S2_avail<-function(lst,nms){
 }
 
 
-listdownload<-function(path){
+listdownload<-function(path,pattern=NULL){
   
   lf1<-list.files(path,full.names = T)
   lf<-list.files(path,full.names = F)
@@ -148,19 +165,16 @@ S2_dir2date<- function(dirlist){
   return(date)
 }
 
-#' Function for automatic replacement of rasters in a certain range
-rasterNA<-function(scene,range,proc.time=F){
+# Alternative way to plot Raster with 
+lp<- function(r,main=""){
   
-  start.rasterNA<-Sys.time()
-  r1<- raster(scene)
-  t5<- values(r1)
-  wh_ras<-which(t5<range[1]|t5>range[2])
-  t5[wh_ras]<-NA
-  r2<-setValues(r1,as.numeric(t5))
-  rm(r1)
-  end.rasterNA<-Sys.time()
-  if(proc.time==T) print(end.rasterNA-start.rasterNA)
+  colr <- colorRampPalette(brewer.pal(11, 'RdYlBu'))
+  colr <- colorRampPalette(c("blue","chocolate","green"))
+  rasterVis::levelplot(r,margin=F, colorkey=list(space='bottom'),  
+                       par.settings=list(axis.line=list(col='transparent')),
+                       scales=list(draw=T),            # suppress axis labels
+                       col.regions=colr,
+                       at=seq(-10000, 10000, len=1000),main=main)
   
-  return(r2)
   
 }
