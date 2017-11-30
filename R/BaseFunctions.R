@@ -25,18 +25,19 @@ loadandinstall("rasterVis")
 
 
 #* 2.1 Directory1: Local ----
-RemsenDir<- "C:/Users/MRossi/Documents/03_Data/01_RemSen/"
-  sentineldir<-paste0(RemsenDir,"/Sentinel/")
-PhenocamDir<- "C:/Users/MRossi/Documents/03_Data/02_PhenoCam/"
-InSitu_dir<-"C:/Users/MRossi/Documents/03_Data/03_InSitu/"
-  dirlai<-paste0(InSitu_dir,"/04_LAI")
-  dirhyp<-paste0(InSitu_dir,"/05_HyperSpec")
-  dirstat<-paste0(InSitu_dir,"/07_FieldCampaign17/00_Raw")
-MonalisaDir<-"C:/Users/MRossi/Documents/03_Data/04_MONALISA/"
-ProviceDir<- "C:/Users/MRossi/Documents/03_Data/05_Province/"
-MetricsDir<- "C:/Users/MRossi/Documents/03_Data/06_Metrics/"
+DataDir<-"C:/Users/MRossi/Documents/03_Data/"
+RemsenDir<- paste0(DataDir,"01_RemSen/")
+  sentineldir<-paste0(RemsenDir,"Sentinel/")
+PhenocamDir<- paste0(DataDir,"02_PhenoCam/")
+InSitu_dir<-paste0(DataDir,"/03_InSitu/")
+  dirlai<-paste0(InSitu_dir,"04_LAI/")
+  dirhyp<-paste0(InSitu_dir,"05_HyperSpec/")
+  dirstat<-paste0(InSitu_dir,"07_FieldCampaign17/00_Raw/")
+MonalisaDir<-paste0(DataDir,"04_MONALISA/")
+ProviceDir<- paste0(DataDir,"05_Province/")
+MetricsDir<- paste0(DataDir,"06_Metrics/")
 
-#* 2.2 Directory2: Workspace ----
+#* 2.2 Directory2: Server Workspace ----
 WorkspaceDir<-"Y:/Workspaces/RosM/"
 
 #* 2.3 Directory3: SAO Server ----
@@ -49,16 +50,12 @@ SAO_Metadir<- paste0(SAO_Vegetationdir,"Metadata_xmls")
 # 3. Global Input ----
 
 sen2names<-c("Platform","Sensor","Level","GResol","AcqDate","Baseline","Sen2Cor","Tile","ProdDescr","Product","Projection")
-metricsList<-list()
 
-lstall<-list()
-cblat<-list()
-cblon<-list()
-allISgps<-list()
+
 
 # 4.Central Functions ----
 
-#* 2.1. General Functions ----
+#* 4.1. General Functions ----
 
 #' Calculation of the Standard Error
 se<-function(x){se<-sd(x,na.rm=T)/length(which(!is.na(x)));return(se)}
@@ -75,7 +72,26 @@ sourceDir <- function(path, trace = TRUE, ...) {
   }
 }
 
-#* 2.2. InSitu Functions ----
+# Search for the same strings in two lists
+stringinlist<-function(string1,string2){
+  
+  c1<-multigrepl(string1,string2) %>% string2[.]
+  c2<-multigrepl(string2,string1) %>% string1[.]
+  
+  c3<-c(c1,c2) %>% unique
+  return(c3)
+  
+}
+
+# Write the first Cap as capita
+simpleCap <- function(x) {
+  s <- strsplit(x, " ")[[1]]
+  paste(toupper(substring(s, 1, 1)), substring(s, 2),
+        sep = "", collapse = " ")
+}
+
+
+#* 4.2. InSitu Functions ----
 
 #' Initialize the InSitu Data Table
 Insitu.init<-function(table,tableColumn,pattern,names){
@@ -123,7 +139,7 @@ hypindices<-function(input,wavel1,wavel2,stat="NDVI"){
   
 }
 
-#* 2.3 Remote Sensing Funtions ----
+#* 4.3 Remote Sensing Funtions ----
 
 #' A table indicating the Availability of Sentinel Data
 S2_avail<-function(lst,nms){
@@ -177,4 +193,29 @@ lp<- function(r,main=""){
                        at=seq(-10000, 10000, len=1000),main=main)
   
   
+}
+
+# Crop Raster by multiple Shapes
+cutrasters<-function(r1,shps){
+  
+  r1ext<-extent(r1)
+  rasters<-list()
+  for(j in 1:length(shps)){
+    
+    if(!is.null(raster::intersect(r1ext,extent(shps[j,])))){
+      
+      cr<-crop(r1,shps[j,])
+      rasters[[j]]<-cr
+      names(rasters)[[j]]<-shps@data$Name[j] %>% as.character
+      
+    }
+  }
+  return(rasters)
+  
+}
+
+#* 4.4. Plotting ----
+get_upper_tri <- function(cormat){
+  cormat[lower.tri(cormat)]<- NA
+  return(cormat)
 }
