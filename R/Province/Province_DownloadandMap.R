@@ -12,12 +12,13 @@ ST<-readOGR("C:/Users/MRossi/Documents/03_Data/Shapes/00_General","SouthTyrol")
 oi_mat<-readOGR(paste0(WorkspaceDir,"/01_Data/KML"),"Mattia_Stations_PhD")
 oi_mat_c<-coordinates(oi_mat)
 
+dnpath<-paste0(ProviceDir,"Download/")
 
 # 3. Tidy ----
 
 stat<-buffmeteo(oi,buffer=10000,dist=T)
 stat1<- stat$Province%>% as.character %>% unique
-scode<-getMeteoSensor(onlySensor = T)
+scode<-getMeteoSensor()
 
 stats<-getMeteoStat()
 stats_spatial<-getMeteoStat(format="spatial")
@@ -60,13 +61,11 @@ m %>% addScaleBar()
 
 
 # 5. Download the Data ----
-
-datestart = "2015-01-01 00:00"
+datestart = "2010-01-01 00:00"
 dateend = "2017-08-31 00:00"
-path<-paste0(ProviceDir,"Download/")
+
 
 stat1<-perStat$SCODE
-
 scode<-c("LT","N")
 
 for(i in 1:length(stat1)){
@@ -75,8 +74,7 @@ for(i in 1:length(stat1)){
     pvcdw<-downloadMeteo(station_code = stat1[i],
                              sensor_code = scode[j],
                              datestart = datestart,
-                             dateend = dateend,
-                             path = path)
+                             dateend = dateend)
     
     #lst[[length(lst)+1]]<-pvcdw
     print(paste(i,"of",length(stat1),"stations & ",j,"of",length(scode),"Sensors"))
@@ -87,18 +85,25 @@ for(i in 1:length(stat1)){
 # 6. Visualize the Timesteps ----
 
 stats<- as.character(perStat$Shape)
-lf2<-listdownload(path)
+lf2<-listdownload(dnpath)
 
 for(i in stats){
   
   stat<-perStat %>% filter(Shape==i)
-  lf2<- lf2 %>% filter(CODE==stat$SCODE)
+  lf3<- lf2 %>% filter(CODE==stat$SCODE)
   
-  for(j in 1:nrow(lf2)){
+  for(j in 1:nrow(lf3)){
     
-    load(lf2$Path[j]) #DAT
+    load(lf3$Path[j]) #DAT
     
-    DAT[["Date"]]<- as.Date(DAT$TimeStamp)
+    
+    date1<-str_split(DAT$TimeStamp,pattern="T")
+    DAT[["Date"]]<- as.Date(date1 %>% sapply(.,'[[',1))
+    DAT[["Time"]]<- date1 %>% sapply(.,'[[',2) %>% 
+      str_replace_all(.,pattern="CES",replacement = "")
+    
+    DAT<-DAT[which(year(DAT$Date)=="2017"),]
+    
     sensor<-DAT$Sensor %>% unique
     
     if(sensor=="LT"){
@@ -106,9 +111,12 @@ for(i in stats){
       DAT2 <- DAT %>% group_by(Date) %>% 
         summarize(min=min(Value),mean=mean(Value),max=max(Value))
       
+      DAT1030<- DAT %>% filter(Time=="10:30:00")
+      
       g1<-ggplot(DAT2,aes(x=Date,y=mean))+
         geom_line(col="red")+
         geom_ribbon(aes(ymin=min,ymax=max),alpha=.2)+
+        ylab("Mean Temperature (°C)")+
         ggtitle(paste("Temperature at Station",unique(DAT$Station),"in",year(DAT2$Date) %>% unique))
       
     }
@@ -120,6 +128,7 @@ for(i in stats){
       
       g1<-ggplot(DAT2,aes(x=Date,y=prec))+
         geom_bar(stat="identity",color=NA,fill="blue")+
+        ylab("Precipitation (mm)")+
         ggtitle(paste("Precipitation at Station",unique(DAT$Station),"in",year(DAT2$Date) %>% unique))
       
     }
@@ -133,6 +142,14 @@ for(i in stats){
 }
 
 # 7. Harmonoie for the Metrics ----
+
+lf2<-listdownload(path)
+
+load(lf2[1,])
+
+
+
+
 
 
 
