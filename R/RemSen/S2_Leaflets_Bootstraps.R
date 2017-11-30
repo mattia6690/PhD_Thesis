@@ -6,7 +6,7 @@ source("R/00_BaseFunctions.R")
 
 # Examplary Leaflet for 
 ex1<-extent(oi2_shape[6,])
-rne<-crop(r1,ex1+10000)
+rne<-crop(r2,ex1+10000)
 ex_shp<-as(extent(rne),'SpatialPolygons')
 crs(ex_shp)<-projection(oi2_shape)
 
