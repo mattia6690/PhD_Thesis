@@ -21,9 +21,11 @@ oi$Date<-as.Date(sprintf("%06s",oi$Date),"%d%m%y")
 aggr<-oi %>% group_by(FOI,Date,SubID)
 aggr2<-ungroup(aggr)
 
+write.csv(aggr2,file = paste0(MetricsDir,"/InSituMetrics.csv"))
+
 # Plot configs
 startdsipdate <-as.Date("2017-05-01")
-enddispdate   <-as.Date("2017-09-01")
+enddispdate   <-as.Date("2017-10-15")
 
 
 ### 2. Plot Data ----
@@ -46,7 +48,7 @@ for(j in stats){
     Se_NDVI=se(NDVI2),
     Se_PRI=se(PRI1))
   
-  ## 2.1. General LinePlot of all Metrics ----
+  #* 2.1. General LinePlot of all Metrics ----
   # LAI
   LAIp<-ggplot(LAI,aes(x=Date,y=Mean,color=SubID))+ ylab(str1)+
     geom_line(size=1.2)+geom_point()+
@@ -78,7 +80,7 @@ for(j in stats){
     scale_x_date(limits=c(startdsipdate,enddispdate))+
     ggtitle(paste(str2,"over time of",j,"Station - 2017"))
 
-  ## 2.2. General BoxPlot of all Metrics ----
+  #* 2.2. General BoxPlot of all Metrics ----
   
   LAIbox<-ggplot(All,aes(x=Date,y=LAI,group=Date))+ ylab(str1)+
     geom_boxplot()+
@@ -110,7 +112,8 @@ for(j in stats){
 
 }
 
-#### 2.3 Comparison of PRI and NDVI ----
+#* 2.3 Comparison of PRI and NDVI ----
+
 g0<-ggplot(oi,aes(x=PRI2,y=PRI1))+geom_point(alpha=.3)+
   ggtitle("Comparison of Hyperspectral PRI")+
   geom_abline(color="brown",linetype="dotted")+
@@ -135,13 +138,14 @@ g3<-ggplot(oi,aes(x=NDVI4,y=NDVI2))+geom_point(alpha=.3)+
 ga1<-grid.arrange(g0,g1,g2,g3, nrow=2, ncol=2,top="Comparison of the different PRI/NDVI Computations")
 ggsave(paste0("09_Visualization/PRI_NDVI_Comparison.png"),plot=ga1,width = 10,height = 7.71)
 
-#### 2.4 Heatmap plot of the Pearson Correlation (overall) ----
-aggr3 <-aggr2 %>% dplyr::select(.,c(PRI1:SW_perc)) %>% select(-NDVI3)
-aggr3cor<-aggr3 %>% cor(.,use="pairwise.complete.obs") %>% round(.,2) %>% melt
+####* 2.4 Heatmap plot of the Pearson Correlation (overall) ----
+aggr3 <-aggr2 %>% dplyr::select(.,c(PRI1:SW_perc)) %>% select(c(PRI1,NDVI1,LAI,BioWet,BioWatRawPerc,SW_perc))
+aggr3cor<-aggr3 %>% cor(.,use="pairwise.complete.obs") %>% round(.,2) %>% get_upper_tri %>% melt(.,na.rm=T)
 
-corplot<-ggplot(data = aggr3cor, aes(x=Var1, y=Var2, fill=value)) + 
+corplot<-ggplot(data = aggr3cor, aes(x=Var2, y=Var1, fill=value)) + 
   geom_tile(color = "white")+
-  scale_fill_gradient2(low = "blue", high = "red", mid = "white", 
+  geom_text(aes(Var2, Var1, label = value))+
+  scale_fill_gradient2(low = "blue", high = "green", mid = "red", 
                        midpoint = 0, limit = c(-1,1), space = "Lab", 
                        name="Pearson\nCorrelation") +
   theme_minimal()+ 
@@ -150,18 +154,19 @@ corplot<-ggplot(data = aggr3cor, aes(x=Var1, y=Var2, fill=value)) +
   coord_fixed()+
   ggtitle("Pearson Correlation Heatmap in 2017 Field Campaign")
 
-ggsave(paste0("09_Visualization/Correlation_heatmap_all.png"),width = 10,height = 7.71)
+ggsave(paste0(InSitu_dir,"09_Visualization/Correlation_heatmap_all.png"),width = 10,height = 7.71)
 
 ## 2.3 Heatmap plot of the Pearson Correlation (byStation)
 fois<-unique(aggr2$FOI)
 for(foi1 in fois){
   
-  aggr3 <-aggr2 %>% filter(FOI==foi1) %>% select(.,c(PRI1:SW_perc)) %>% select(-NDVI3)
-  aggr3cor<-aggr3 %>% cor(.,use="pairwise.complete.obs") %>% round(.,2) %>% melt
+  aggr3 <-aggr2 %>% filter(FOI==foi1) %>% select(.,c(PRI1:SW_perc)) %>% select(c(PRI1,NDVI1,LAI,BioWet,BioWatRawPerc,SW_perc))
+  aggr3cor<-aggr3 %>% cor(.,use="pairwise.complete.obs") %>% round(.,2) %>% get_upper_tri %>%  melt(.,na.rm=T)
   
-  corplot<-ggplot(data = aggr3cor, aes(x=Var1, y=Var2, fill=value)) + 
+  corplot<-ggplot(data = aggr3cor, aes(x=Var2, y=Var1, fill=value)) + 
     geom_tile(color = "white")+
-    scale_fill_gradient2(low = "blue", high = "red", mid = "white", 
+    geom_text(aes(Var2, Var1, label = value))+
+    scale_fill_gradient2(low = "blue", high = "green", mid = "red", 
                          midpoint = 0, limit = c(-1,1), space = "Lab", 
                          name="Pearson\nCorrelation") +
     theme_minimal()+ 
@@ -170,11 +175,15 @@ for(foi1 in fois){
     coord_fixed()+
     ggtitle(paste0("Pearson Correlation Heatmap in 2017 Field Campaign ",foi1))
   
-  ggsave(paste0("09_Visualization/Correlations/Correlation_heatmap_",foi1,".png"),width = 10,height = 7.71)
+  ggsave(paste0(InSitu_dir,"09_Visualization/Correlations/Correlation_heatmap_",foi1,".png"),width = 10,height = 7.71)
   
 }
 
 ## 3. Boxplot with all Stations combined ----
+
+aggr_alpenv<-aggr[which(aggr$FOI=="Vimes1500"|aggr$FOI=="P2"),]
+
+
 str<-"LAI over time"
 tst<-ggplot()+
   geom_smooth(data=aggr,aes(x=Date,y=LAI,color=FOI),se=F)+
@@ -187,7 +196,7 @@ ggsave(paste0(InSitu_dir,"09_Visualization/Station_Combo/",str,".png"),
 str<-"NDVI over time"
 tst<-ggplot()+
   geom_smooth(data=aggr,aes(x=Date,y=NDVI1,color=FOI),se=F)+
-  geom_boxplot(data=aggr,aes(x=Date,y=NDVI1,group=interaction(Date,FOI),fill = FOI))+ 
+  geom_boxplot(data=aggr_alpenv,aes(x=Date,y=NDVI1,group=interaction(Date,FOI),fill = FOI))+ 
   scale_x_date()+
   ggtitle(paste0(str," - Field Campaign 2017"))
 ggsave(paste0(InSitu_dir,"09_Visualization/Station_Combo/",str,".png"),
@@ -195,7 +204,7 @@ ggsave(paste0(InSitu_dir,"09_Visualization/Station_Combo/",str,".png"),
 
 str<-"Wet Biomass Extraction over time"
 tst<-ggplot()+
-  geom_smooth(data=aggr,aes(x=Date,y=BioWet,color=FOI),se=F)+
+  geom_smooth(data=aggr_alp,aes(x=Date,y=BioWet,color=FOI),se=F)+
   geom_boxplot(data=aggr,aes(x=Date,y=BioWet,group=interaction(Date,FOI),fill = FOI))+ 
   scale_x_date()+
   ggtitle(paste0(str," - Field Campaign 2017"))
@@ -219,5 +228,49 @@ tst<-ggplot()+
   ggtitle(paste0(str," - Field Campaign 2017"))
 ggsave(paste0(InSitu_dir,"09_Visualization/Station_Combo/",str,".png"),
        plot=tst,device="png",width = 15.2,height = 7.71)
+
+#* 3.1. Boxplot for AlpEnv ----
+
+aggr_alpenv<-aggr[which(aggr$FOI=="Vimes1500"|aggr$FOI=="P2"),]
+
+str<-"LAI over time"
+tst<-ggplot()+
+  geom_boxplot(data=aggr_alpenv,aes(x=Date,y=LAI,group=interaction(Date,FOI),fill = FOI))+ 
+  scale_fill_manual(values = c("goldenrod", "forestgreen"))+
+  scale_x_date()+
+  ggtitle(paste0(str," - Field Campaign 2017"))+
+  xlim(startdsipdate,enddispdate)
+ggsave(paste0(InSitu_dir,"09_Visualization/Station_Combo/",str,".png"),
+       plot=tst,device="png",width = 15.2,height = 7.71)
+
+str<-"NDVI over time"
+tst<-ggplot()+
+  geom_boxplot(data=aggr_alpenv,aes(x=Date,y=NDVI1,group=interaction(Date,FOI),fill = FOI))+ 
+  scale_fill_manual(values = c("goldenrod", "forestgreen"))+
+  scale_x_date()+
+  ggtitle(paste0(str," - Field Campaign 2017"))+
+  xlim(startdsipdate,enddispdate)
+
+ggsave(paste0(InSitu_dir,"09_Visualization/Station_Combo/",str,".png"),
+       plot=tst,device="png",width = 15.2,height = 7.71)
+
+str<-"Biomass Water Percentage over Time"
+tst<-ggplot()+
+  geom_boxplot(data=aggr_alpenv,aes(x=Date,y=BioWatRawPerc,group=interaction(Date,FOI),fill = FOI))+ 
+  scale_fill_manual(values = c("goldenrod", "forestgreen"))+
+  scale_x_date()+
+  ggtitle(paste0(str," - Field Campaign 2017"))
+ggsave(paste0(InSitu_dir,"09_Visualization/Station_Combo/",str,".png"),
+       plot=tst,device="png",width = 15.2,height = 7.71)
+
+str<-"Wet Biomass Extraction over time"
+tst<-ggplot()+
+  geom_boxplot(data=aggr_alpenv,aes(x=Date,y=BioWet,group=interaction(Date,FOI),fill = FOI))+ 
+  scale_fill_manual(values = c("goldenrod", "forestgreen"))+
+  scale_x_date()+
+  ggtitle(paste0(str," - Field Campaign 2017"))
+ggsave(paste0(InSitu_dir,"09_Visualization/Station_Combo/",str,".png"),
+       plot=tst,device="png",width = 15.2,height = 7.71)
+
 
   

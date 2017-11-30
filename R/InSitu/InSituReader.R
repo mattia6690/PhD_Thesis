@@ -10,7 +10,10 @@ lf_full<-list.files(dirstat,pattern =".csv",full.names = T)
 
 
 # 3. Computation ----
-
+lstall<-list()
+cblat<-list()
+cblon<-list()
+allISgps<-list()
 for(i in 1:length(lf_full)){
   
   #* 3.1 Input and Start ----

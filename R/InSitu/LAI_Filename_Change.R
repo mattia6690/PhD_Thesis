@@ -1,14 +1,13 @@
 # 1. Initialization ----
-source("R/00_BaseFunctions.R")
+source("R/BaseFunctions.R")
 
 
 # 2. Input ----
 
-lai.dir.in <-dirlai %>% paste0("/Raw1/")
-lai.dir.out<-dirlai
+lai.dir.in <-dirlai %>% paste0("Raw1/")
+lai.dir.out<-dirlai %>% paste0("/")
 
 lf<- list.files(lai.dir.in)
-
 
 # 3. Process ----
 
