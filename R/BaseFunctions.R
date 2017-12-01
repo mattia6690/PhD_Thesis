@@ -20,6 +20,8 @@ loadandinstall("jsonlite")
 loadandinstall("geojsonio")
 loadandinstall("RColorBrewer")
 loadandinstall("rasterVis")
+loadandinstall("Rlof")
+loadandinstall("scales")
 
 # 2. Define Directories ----
 
@@ -211,6 +213,19 @@ cutrasters<-function(r1,shps){
     }
   }
   return(rasters)
+  
+}
+
+# Mask  one or multiple values with a list of rasters
+rasterLmask<-function(rasterList,values){
+  
+  r<-lapply(rasterList, function(x){
+    check<-is.element(values(x),values)
+    if(any(check)) x[which(check)]<-NA
+    return(x)
+  }) 
+  
+  return(r)
   
 }
 

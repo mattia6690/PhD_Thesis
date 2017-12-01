@@ -3,67 +3,19 @@
 
 # Source other Scripts
 source("R/BaseFunctions.R")
+source("R/RemSen/S2_ExtractMetrics1_Initialization.R")
 
-# 2. Input ----
-#* 2.1 Read the MONALISA Data ----
-
-oi<-readOGR(paste0(WorkspaceDir,"01_Data/KML"),"MONALISA Grassland")
-oi_shape<-readOGR(paste0(WorkspaceDir,"01_Data/KML"),"MONALISA Grassland Shapefile")
-
-mnls_lf<-list.files(paste0(MonalisaDir,"02_Download/Download_csv_20170405_1547"),full.names = T)
-mnls_lf.short<-list.files(paste0(MonalisaDir,"02_Download/Download_csv_20170405_1547"))
-mnls_stations<-do.call(rbind,strsplit(mnls_lf.short, "\\_|\\-| ")) %>% .[,2]
-
-#* 2.2 Read the Sentinel Data ----
-
-sao_ndvi_lf<-list.files(SAO_NDVIdir,pattern=".tif",full.names = T,recursive = T)
-sao_ndvi_lf.short<-list.files(SAO_NDVIdir,recursive=T,pattern=".tif")
-
-#* 2.3 Define Global Input ----
-
-sen2tile<-"T32TPS"
-sen2proj<-"LAEA"
-NArange <-c(-10000,10000)
-
-
-# 3. Tidy ----
-#* 3.1 Tidy the Table ----
-
-df<-S2_avail(sao_ndvi_lf.short,sen2names) %>% 
-  add_column(dir=sao_ndvi_lf)
-
-df<-df %>% 
-  expand(df,nesting(mnls_stations)) %>% 
-  filter(Tile==sen2tile) %>% 
-  filter(Projection==sen2proj)
-
-sao_dates<-df %>%
-  filter(AcqDate>2017) %>%
-  dplyr::select(dir)
-
-sao_ndvi_lf<- sao_dates %>% 
-  as.matrix %>% 
-  unlist %>% 
-  unique
-
-#* 3.2 Change Projection ----
-proj<-"+proj=laea +lat_0=52 +lon_0=10 +x_0=4321000 +y_0=3210000 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs" 
-oi2<-spTransform(oi,CRS(proj))
-oi2_shape<-spTransform(oi_shape,CRS(proj))
-oi2@data$Name<-oi2@data$Name %>% tolower
-oi2_shape@data$Name<-oi2_shape@data$Name %>% tolower
-
-#* 3.3 Generate Buffer ----
-oi2buff<-gBuffer(oi2,byid=T,width=1500)
-
-# 4. Extract Metrics ----
-# The scale for extraction is Sentinel2_MSI
+# 2. Extract Metrics ----
+# Initialize the Base Information for the Final Data Frame
+# The Layout of the Dataframe will then remain the same
 
 Scale1<-"Sentinel2"
 Scale2<-"MSI"
 names<-c("Date","Station","Scale1","Scale2","OP1","OP2","OP3","Value")
-# Central For Iteration
 metricsList<-list()
+
+# Start of the Central Script to combine the Metrics
+# The extract process will be done separately for (i) the whole Image
 for(i in 1:length(sao_ndvi_lf)){
 
   print(paste("Start image",i,"of",length(sao_ndvi_lf)))
@@ -74,11 +26,12 @@ for(i in 1:length(sao_ndvi_lf)){
   df_scene<-df %>% filter(dir==scene)
   timestamp<-unique(df_scene$AcqDate)
   
-  print(paste("1/5 Initialization FINISHED"))
-  #* 4.1  Image ----
   r1<- raster(scene)
   
-  OP1<-"Image"
+  print(paste("1/5 Initialization FINISHED"))
+  
+  #* 4.1  Image ----
+  OP1<-"Scene"
   OP2<-"Mask"
   OP3<-c("NPixel","Masked","MakedPercent","NoData","LandCover","Clouds","ROR","Shadow","Snow")
   
@@ -100,7 +53,7 @@ for(i in 1:length(sao_ndvi_lf)){
   OP3list<-list()
   for(j in 1:length(OP_parlist)){
     
-    combiner<-do.call(cbind,list(timestamp,Tile,Scale1,Scale2,OP1,OP2,OP3[j],OP_parlist[[j]]))
+    combiner<-do.call(cbind,list(timestamp,"Tile",Scale1,Scale2,OP1,OP2,OP3[j],OP_parlist[[j]]))
     colnames(combiner)<-names
     OP3list[[j]]<-combiner
   }
@@ -142,16 +95,7 @@ for(i in 1:length(sao_ndvi_lf)){
   bufferlist<-do.call(rbind,OP3list)
   rownames(bufferlist)<-NULL
   
-  # The Mask excluded Raster list
-  rasters2<-lapply(rasters, function(x){
-    check<-is.element(values(x),mvals)
-    if(any(check)) x[which(check)]<-NA
-    return(x)
-  })
-  
   print("3/5 Buffer Zone FINISHED")
-  
-  
   #* 4.3 Shapefile ----
   
   rasters<- cutrasters(r1,oi2_shape)
@@ -187,11 +131,7 @@ for(i in 1:length(sao_ndvi_lf)){
   rownames(shapelist1)<-NULL
   
   # The Mask excluded Raster list
-  rasters2<-lapply(rasters, function(x){
-    check<-is.element(values(x),mvals)
-    if(any(check)) x[which(check)]<-NA
-    return(x)
-  })
+  rasters2<-rasterLmask(rasters,mvals)
   
   OP2<-"NDVI"
   OP3<-c("Mean","Stdev","MoransI")
@@ -240,7 +180,7 @@ for(i in 1:length(sao_ndvi_lf)){
     r1j<-rasters2[[j]]
     rastersname<-names(rasters2)[j]
     oij<-oi2[which(oi2@data$Name==rastersname),]
-    pnt[j]<-extract2(r1j,oij)$Mean
+    pnt[j]<-extract2(r1j,oij,na.rm=T)$Mean %>% round(.,2)
     
   }
   
@@ -259,37 +199,9 @@ for(i in 1:length(sao_ndvi_lf)){
   
 }
 
-# 5. Tidy Metrics ----
-
-# Create and Save Data Frame
 ml<-do.call(rbind,metricsList) %>% as.tibble
 saveRDS(ml, paste0(MetricsDir,"Sentinel2_NDVI_metrics.rds"))
 
-# 6. Plot Metrics ----
-
-#* 6.1 GGplots ----
-ml<-readRDS(paste0(MetricsDir,"Sentinel2_NDVI_metrics.rds"))
-
-ml.unq<-ml$Station %>% unique
-dat.unq<-ml$Date %>% unique
-
-i=ml.unq[1]
-for(i in ml.unq){
-  
-  ml3<-ml %>% filter(Station==i)
-  ml3_mask_B<- ml3 %>% filter(OP3=="MakedPercent") %>% filter(OP1=="Buffer"|OP1=="Shapefile")
-  ml3_mask_shapeOnly<-ml3_mask_B %>% filter(OP1=="Shapefile") 
-  
-  ggplot(ml3_mask_B,aes(x=as.Date(Date,format="%Y%m%d"),y=as.numeric(Value)))+
-    geom_point()+
-    geom_vline(aes(xintercept=as.Date(Date,format="%Y%m%d")),linetype=2,color="grey")+
-    geom_point(aes(color=OP1),size=2)+
-    geom_line(ml3_mask_shapeOnly,aes(x=as.Date(Date,format="%Y%m%d"),y=as.numeric(Value)))+
-    xlab("Date")+ylab("Percentage")+
-    ggtitle("Percentage of Masked Pixels ")
-    
-  
-}
 
 # 6.1.1 Ggplots With Point
 for(i in ml.unq){
