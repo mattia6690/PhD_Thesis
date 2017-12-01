@@ -2,7 +2,6 @@
 # 1. Initialization ----
 
 # Source other Scripts
-source("R/BaseFunctions.R")
 source("R/RemSen/S2_ExtractMetrics1_Initialization.R")
 
 # 2. Extract Metrics ----
@@ -180,7 +179,7 @@ for(i in 1:length(sao_ndvi_lf)){
     r1j<-rasters2[[j]]
     rastersname<-names(rasters2)[j]
     oij<-oi2[which(oi2@data$Name==rastersname),]
-    pnt[j]<-extract2(r1j,oij,na.rm=T)$Mean %>% round(.,2)
+    pnt[j]<-extract2(r1j,oij,narm=T)$Mean %>% round(.,2)
     
   }
   
@@ -201,84 +200,5 @@ for(i in 1:length(sao_ndvi_lf)){
 
 ml<-do.call(rbind,metricsList) %>% as.tibble
 saveRDS(ml, paste0(MetricsDir,"Sentinel2_NDVI_metrics.rds"))
-
-
-# 6.1.1 Ggplots With Point
-for(i in ml.unq){
-  
-  ml2<-ml %>% filter(mnls_stations==i)
-  ml2$date<-S2_dir2date(ml2$dir.x)
-  ml2$nas <-ml2$Original_Nas/ml2$Original_Ncells %>% `/`(100)
-  
-  g1<-ggplot(ml2,aes(date,Weigted_Mean))+
-    geom_point(aes(y=Original_Mean,color="Shape All"))+
-    geom_point(aes(color="Shape Weighted"))+
-    geom_smooth(aes(color="Shape Weighted"),linetype=3,se=F)+
-    geom_point(aes(y=as.numeric(Points),color="Point"))+
-    scale_x_date()+
-    ylab("NDVI value")+xlab("Date")+ylim(0,10000)+
-    labs(title=paste0("Sentinel 2 NDVI Mean, 2017 in Station ",i))+
-    scale_colour_manual(breaks=c("Shape All","Shape Weighted","Point"),
-                        values=c("red","cyan","blue"))
-  
-  ggsave(g1,filename = paste0(sentineldir,"Metrics/S2_NDVI_2017_",i,".png"),device="png")
-  
-}
-
-# 6.1.2 Ggplots Without Points
-for(i in ml.unq){
-  
-  ml2<-ml %>% filter(mnls_stations==i)
-  ml2$date<-S2_dir2date(ml2$dir.x)
-  ml2$nas <-ml2$Original_Nas/ml2$Original_Ncells %>% `/`(100)
-  
-  g1<-ggplot(ml2,aes(date,Weigted_Mean))+
-    geom_point(aes(y=Original_Mean,color="Shape All"))+
-    geom_point(aes(color="Shape Weighted"))+
-    geom_smooth(aes(color="Shape Weighted"),linetype=3,se=F)+
-    scale_x_date()+
-    ylab("NDVI value")+xlab("Date")+ylim(0,10000)+
-    labs(title=paste0("Sentinel 2 NDVI Mean, 2017 in Station ",i))+
-    scale_colour_manual(breaks=c("Shape All","Shape Weighted"),
-                        values=c("cyan","blue"))
-  
-  ggsave(g1,filename = paste0(sentineldir,"Metrics/S2_NDVI_2017_",i,"_nopoint.png"),device="png",height = 7,width=14)
-  
-}
-
-#* 6.2 Levelplot alternative ----
-
-lp(r2)
-
-####### Tests ----
-ggproj<-"+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"
-
-tras<-r1
-tobjP<-oi2[5,]
-tobjS<-oi2_shape[6,]
-ext<-as(extent(tras),"SpatialPolygons")
-crs(ext)<-projection(tras)
-buff<-gBuffer(tobjP,width=1000,quadsegs = 100)
-buff2<-gBuffer(tobjP,width=1500,quadsegs = 100)
-
-extlatlon<-buff2 %>% 
-  spTransform(.,CRS(ggproj)) %>% 
-  extent %>% 
-  .[c(1,3,2,4)]
-
-tobjP1<-spTransform(tobjP,CRS(ggproj))
-tobjS1<-spTransform(tobjS,CRS(ggproj))
-buff1<-spTransform(buff,CRS(ggproj))
-tobjP2<-tobjP1 %>% coordinates %>% as.data.frame
-
-mymap<-get_map(location=extlatlon,source="google",maptype="hybrid")
-ggmap(mymap)+
-  geom_polygon(data=buff1,aes(x=long,y=lat,group=group,color="1,5 Km Buffer"),fill=NA)+
-  geom_polygon(data=tobjS1,aes(x=long,y=lat,group=group,color="Site Extent"),fill=NA)+
-  geom_point(data=tobjP2,aes(x=coords.x1,y=coords.x2,color="MONALISA Station"))+
-  xlab("Longitude")+
-  ylab("Latitude")+
-  scale_color_manual("Legend",values = c("red","orange","yellow"))
-  
 
 
