@@ -7,7 +7,7 @@
 #' * Combined plot of PRI and NDVI in different wavelengths
 #' 
 ###########################'
-source("C:/Users/MRossi/Documents/07_Codes/PhD_Thesis/R/00_BaseFunctions.R")
+source("R/BaseFunctions.R")
 
 ### 1. Read Data ----
 
@@ -20,6 +20,12 @@ oi$Date<-as.Date(sprintf("%06s",oi$Date),"%d%m%y")
 
 aggr<-oi %>% group_by(FOI,Date,SubID)
 aggr2<-ungroup(aggr)
+
+
+
+
+write.csv(do.call(rbind.fill,hyperlist),file = paste0(MetricsDir,"HyperSpecFrequency.csv"))
+
 
 write.csv(aggr2,file = paste0(MetricsDir,"/InSituMetrics.csv"))
 
@@ -273,4 +279,16 @@ ggsave(paste0(InSitu_dir,"09_Visualization/Station_Combo/",str,".png"),
        plot=tst,device="png",width = 15.2,height = 7.71)
 
 
+# 4. Measurement Frequencies ----
+
+#* 4.1 Hyperspectral ----
+
+hyperMeas<-aggr2 %>% select(Date,FOI,NDVI1) %>% select(-NDVI1) %>% group_by(Date,FOI) %>% summarize %>% ungroup
+hyperlist<-list()
+for(i in 1:length(stats)){
   
+  h2<-hyperMeas$Date[which(hyperMeas$FOI==stats[i])] %>% cbind.data.frame()
+  colnames(h2)<-stats[i]
+  hyperlist[[i]]<-h2
+}
+
