@@ -1,7 +1,8 @@
 # 1. Initialization ----
 
 # Source other Scripts
-source("R/RemSen/S2_ExtractMetrics3_Filter.R")
+source("R/BaseFunctions.R")
+#source("R/RemSen/S2_ExtractMetrics3_Filter.R")
 
 
 #* 2.2. Cloud Coverage Plots ----
@@ -10,30 +11,36 @@ source("R/RemSen/S2_ExtractMetrics3_Filter.R")
 ml<-readRDS(paste0(MetricsDir,"S2_MaskingValues.rds"))
 ml.unq<-ml$Station %>% unique %>% .[-1] # Tile Deleted
 
+years<-as.numeric(format(ml$Date, "%Y")) %>% unique
 
+year<-"2017"
 
-mluni<-ml %>% select(Station,OP1,Date,Value) %>% unite(.,"Unified",c(Station,OP1),sep="_")
-mluni$Unified<-factor(mluni$Unified,levels=rev(unique(mluni$Unified)))
-lines<-seq(2.5,mluni$Unified %>% unique %>% length,2)
-
-corplot<-ggplot(mluni, aes(x=factor(Date), y=Unified, fill=Value)) + 
-  geom_tile(color = "white")+
-  geom_text(aes(as.character(Date), Unified, label = round(Value)))+
-  scale_fill_gradient2(low = "green", high = "red", mid = "yellow", 
-                       midpoint = 50, limit = c(0,100), space = "Lab", 
-                       name="Masked\nPixel") +
-  geom_hline(yintercept=lines)+
-  theme_minimal()+
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))+
-  ylab("Extent")+xlab("Date")+
-  ggtitle("Percent of Masked Pixel per Sentinel-2 Acquisition in 2017")
-
-ggsave(corplot,filename = paste0(sentineldir,"Clouds/S2_Cloud_Detection_Heatmap.png"),device="png",height = 7,width=15)
-
+for(i in years){
+  
+  ml1<- ml %>% filter(as.numeric(format(Date,"%Y"))==i)
+  
+  mluni<-ml1 %>% select(Station,OP1,Date,Value) %>% unite(.,"Unified",c(Station,OP1),sep="_")
+  mluni$Unified<-factor(mluni$Unified,levels=rev(unique(mluni$Unified)))
+  lines<-seq(2.5,mluni$Unified %>% unique %>% length,2)
+  
+  corplot<-ggplot(mluni, aes(x=factor(Date), y=Unified, fill=Value)) + 
+    geom_tile(color = "white")+
+    geom_text(aes(as.character(Date), Unified, label = round(Value)))+
+    scale_fill_gradient2(low = "green", high = "red", mid = "yellow", 
+                         midpoint = 50, limit = c(0,100), space = "Lab", 
+                         name="Masked\nPixel") +
+    geom_hline(yintercept=lines)+
+    theme_minimal()+
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))+
+    ylab("Extent")+xlab("Date")+
+    ggtitle(paste0("Percent of Masked Pixel per Sentinel-2 Acquisition in ",i))
+  
+  ggsave(corplot,filename = paste0(sentineldir,"Clouds/S2_Cloud_Detection_Heatmap_",i,".png"),device="png",height = 7,width=20)
+}
 
 #* 2.3. NDVI Plots ----
 
-ml<-readRDS(paste0(MetricsDir,"S2_Filtered_NDVI.rds"))
+ml<-readRDS(paste0(MetricsDir,"S2_Filtered_NDVI_1516.rds"))
 
 
 ml1<-ml %>% filter(Station=="vimes1500")
@@ -98,6 +105,39 @@ for(i in ml.unq){
   ggsave(g1,filename = paste0(sentineldir,"Metrics/S2_NDVI_2017_",i,"_nopoint.png"),device="png",height = 7,width=14)
   
 }
+
+# Plot of the Station with Polygon and Points
+
+ggproj<-"+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"
+tras<-r1
+tobjP<-oi2[5,]
+tobjS<-oi2_shape[6,]
+ext<-as(extent(tras),"SpatialPolygons")
+crs(ext)<-projection(tras)
+buff<-gBuffer(tobjP,width=1000,quadsegs = 100)
+buff2<-gBuffer(tobjP,width=1500,quadsegs = 100)
+
+extlatlon<-buff2 %>%
+  spTransform(.,CRS(ggproj)) %>%
+  extent %>%
+  .[c(1,3,2,4)]
+
+tobjP1<-spTransform(tobjP,CRS(ggproj))
+tobjS1<-spTransform(tobjS,CRS(ggproj))
+buff1<-spTransform(buff,CRS(ggproj))
+tobjP2<-tobjP1 %>% coordinates %>% as.data.frame
+
+mymap<-get_map(location=extlatlon,source="google",maptype="hybrid")
+g1<-ggmap(mymap)+
+  geom_polygon(data=tobjS1,aes(x=long,y=lat,group=group,color="Site Extent"),fill=NA)+
+  geom_point(data=tobjP2,aes(x=coords.x1,y=coords.x2,color="MONALISA Station"))+
+  xlab("Longitude")+
+  ylab("Latitude")+
+  scale_color_manual("Legend",values = c("orange","yellow"))+
+  ggtitle("Vimes1500 Station Location and Shapefile")
+
+ggsave(g1,filename = paste0(MetricsDir,"/Sentinel/ShapefilePoint.png"),device="png")
+
 
 #* 6.2 Levelplot alternative ----
 

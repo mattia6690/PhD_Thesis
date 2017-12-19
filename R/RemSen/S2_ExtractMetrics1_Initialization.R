@@ -24,6 +24,7 @@ sao_ndvi_lf.short<-list.files(SAO_NDVIdir,recursive=T,pattern=".tif")
 sen2tile<-"T32TPS"
 sen2proj<-"LAEA"
 NArange <-c(-10000,10000)
+year<-"2017"
 
 
 # 3. Tidy ----
@@ -38,7 +39,7 @@ df<-df %>%
   filter(Projection==sen2proj)
 
 sao_dates<-df %>%
-  filter(AcqDate>2017) %>%
+  filter(substr(AcqDate,1,4)==year) %>%
   dplyr::select(dir)
 
 sao_ndvi_lf<- sao_dates %>% 

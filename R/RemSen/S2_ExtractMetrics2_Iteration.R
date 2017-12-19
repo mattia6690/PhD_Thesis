@@ -2,7 +2,8 @@
 # 1. Initialization ----
 
 # Source other Scripts
-source("R/RemSen/S2_ExtractMetrics1_Initialization.R")
+#source("R/RemSen/S2_ExtractMetrics1_Initialization.R")
+writeCSV=T
 
 # 2. Extract Metrics ----
 # Initialize the Base Information for the Final Data Frame
@@ -11,7 +12,11 @@ source("R/RemSen/S2_ExtractMetrics1_Initialization.R")
 Scale1<-"Sentinel2"
 Scale2<-"MSI"
 names<-c("Date","Station","Scale1","Scale2","OP1","OP2","OP3","Value")
+year<-"2017"
 metricsList<-list()
+tiles<-array(dim=length(sao_ndvi_lf))
+
+suffix<-"151217"
 
 # Start of the Central Script to combine the Metrics
 # The extract process will be done separately for (i) the whole Image
@@ -26,39 +31,49 @@ for(i in 1:length(sao_ndvi_lf)){
   timestamp<-unique(df_scene$AcqDate)
   
   r1<- raster(scene)
+  tile<-df_scene$Tile[i]
+  
   
   print(paste("1/5 Initialization FINISHED"))
   
   #* 4.1  Image ----
-  OP1<-"Scene"
-  OP2<-"Mask"
-  OP3<-c("NPixel","Masked","MakedPercent","NoData","LandCover","Clouds","ROR","Shadow","Snow")
   
-  mvals<-seq(-26000,-21000,1000)
-  v1<-values(r1)
-  
-  OP_parlist<-list()
-  OP_parlist[[1]]<-length(v1)
-  OP_parlist[[2]]<-length(which(is.element(v1,mvals)))
-  OP_parlist[[3]]<-round((OP_parlist[[2]]/OP_parlist[[1]])*100,2)
-  OP_parlist[[4]]<-which(v1==mvals[1]) %>% length
-  OP_parlist[[5]]<-which(v1==mvals[2]) %>% length
-  OP_parlist[[6]]<-which(v1==mvals[3]) %>% length
-  OP_parlist[[7]]<-which(v1==mvals[4]) %>% length
-  OP_parlist[[8]]<-which(v1==mvals[5]) %>% length
-  OP_parlist[[9]]<-which(v1==mvals[6]) %>% length
-  names(OP_parlist)<-OP3
-  
-  OP3list<-list()
-  for(j in 1:length(OP_parlist)){
+  if(!any(is.element(tiles,tile))){
     
-    combiner<-do.call(cbind,list(timestamp,"Tile",Scale1,Scale2,OP1,OP2,OP3[j],OP_parlist[[j]]))
-    colnames(combiner)<-names
-    OP3list[[j]]<-combiner
+    OP1<-"Scene"
+    OP2<-"Mask"
+    OP3<-c("NPixel","Masked","MaskedPercent","NoData","LandCover","Clouds","ROR","Shadow","Snow")
+    
+    mvals<-seq(-26000,-21000,1000)
+    v1<-values(r1)
+    
+    OP_parlist<-list()
+    OP_parlist[[1]]<-length(v1)
+    OP_parlist[[2]]<-length(which(is.element(v1,mvals)))
+    OP_parlist[[3]]<-round((OP_parlist[[2]]/OP_parlist[[1]])*100,2)
+    OP_parlist[[4]]<-which(v1==mvals[1]) %>% length
+    OP_parlist[[5]]<-which(v1==mvals[2]) %>% length
+    OP_parlist[[6]]<-which(v1==mvals[3]) %>% length
+    OP_parlist[[7]]<-which(v1==mvals[4]) %>% length
+    OP_parlist[[8]]<-which(v1==mvals[5]) %>% length
+    OP_parlist[[9]]<-which(v1==mvals[6]) %>% length
+    names(OP_parlist)<-OP3
+    
+    OP3list<-list()
+    for(j in 1:length(OP_parlist)){
+      
+      combiner<-do.call(cbind,list(timestamp,tile,Scale1,Scale2,OP1,OP2,OP3[j],OP_parlist[[j]]))
+      colnames(combiner)<-names
+      OP3list[[j]]<-combiner
+    }
+    
+    imagelist<-do.call(rbind,OP3list)
+    rownames(imagelist)<-NULL
+    
+    tiles[i]<-tile
+    
   }
-  
-  imagelist<-do.call(rbind,OP3list)
-  rownames(imagelist)<-NULL
+    
   
   #* 4.2 Buffer ----
   print("2/5 Scene FINISHED")
@@ -67,7 +82,7 @@ for(i in 1:length(sao_ndvi_lf)){
   
   OP1<-"Buffer"
   OP2<-"Mask"
-  OP3<-c("NPixel","Masked","MakedPercent","NoData","LandCover","Clouds","ROR","Shadow","Snow")
+  OP3<-c("NPixel","Masked","MaskedPercent","NoData","LandCover","Clouds","ROR","Shadow","Snow")
   
   mvals<-seq(-26000,-21000,1000)
   
@@ -101,7 +116,7 @@ for(i in 1:length(sao_ndvi_lf)){
   
   OP1<-"Shapefile"
   OP2<-"Mask"
-  OP3<-c("NPixel","Masked","MakedPercent","NoData","LandCover","Clouds","ROR","Shadow","Snow")
+  OP3<-c("NPixel","Masked","MaskedPercent","NoData","LandCover","Clouds","ROR","Shadow","Snow")
   
   mvals<-seq(-26000,-21000,1000)
   
@@ -199,6 +214,6 @@ for(i in 1:length(sao_ndvi_lf)){
 }
 
 ml<-do.call(rbind,metricsList) %>% as.tibble
-saveRDS(ml, paste0(MetricsDir,"Sentinel2_NDVI_metrics.rds"))
+saveRDS(ml, paste0(MetricsDir,"Sentinel2_metrics_",suffix,".rds"))
 
-
+if(writeCSV==T) write.csv(ml, paste0(MetricsDir,"Sentinel2_metrics_",suffix,".csv"))
