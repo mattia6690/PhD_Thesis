@@ -34,6 +34,7 @@ PhenocamDir<- paste0(DataDir,"02_PhenoCam/")
 InSitu_dir<-paste0(DataDir,"/03_InSitu/")
   dirlai<-paste0(InSitu_dir,"04_LAI/")
   dirhyp<-paste0(InSitu_dir,"05_HyperSpec/")
+  dirfield<-paste0(InSitu_dir,"07_FieldCampaign17/")
   dirstat<-paste0(InSitu_dir,"07_FieldCampaign17/00_Raw/")
 MonalisaDir<-paste0(DataDir,"04_MONALISA/")
 ProviceDir<- paste0(DataDir,"05_Province/")
@@ -141,6 +142,7 @@ hypindices<-function(input,wavel1,wavel2,stat="NDVI"){
   
 }
 
+
 #* 4.3 Remote Sensing Funtions ----
 
 #' A table indicating the Availability of Sentinel Data
@@ -233,4 +235,55 @@ rasterLmask<-function(rasterList,values){
 get_upper_tri <- function(cormat){
   cormat[lower.tri(cormat)]<- NA
   return(cormat)
+}
+
+
+#* 4.5. Combine Metrics ----
+
+# Check for the nearest date within a rangeand extrac
+nearDate<-function(obj1,obj2,maxdays,valuesonly=T){
+  
+  nmat<-data.frame()
+  for(i in 1:length(s2$Date)){
+    
+    x<-obj1$Date[i]
+    y<-obj2$Date
+    diffs<-abs(y-x)
+    
+    if(min(diffs)<=maxdays){
+      neardate<-which(abs(diffs) == min(abs(diffs)))
+      neardate<-y[neardate]
+      nmat[i,1]<-as.character(x)
+      nmat[i,2]<-as.character(neardate)
+      nmat[i,3]<-min(diffs)
+    }
+  }
+  if(nrow(nmat)==0) break
+  nmat<-nmat[complete.cases((nmat)),]
+  
+  if(nrow(nmat)==0) break
+  # Sentinel Join
+  nmat1<-nmat$V1 %>% as.Date %>% as.tibble
+  colnames(nmat1)<-"Date"
+  d1<-obj1 %>% select(Date,Value) %>% left_join(nmat1,.,by="Date")
+  
+  # Ground Join
+  nmat1<-nmat$V2 %>% as.Date %>% as.tibble
+  colnames(nmat1)<-"Date"
+  d2<-obj2 %>% select(Date,Value) %>% left_join(nmat1,.,by="Date")
+  
+  d3<-nmat[,3]
+  
+  if(valuesonly==F){
+    cb<-cbind.data.frame(d1,d2,d3)
+    colnames(cb)<-c("Date_obj1","Value_obj1","Date_obj2","Value_obj2","Diff")
+  }
+  if(valuesonly==T){
+    
+    cb<-cbind.data.frame(d1$Value,d2$Value,d3)
+    colnames(cb)<-c("Value_obj1","Value_obj2","Diff")
+    
+  }
+  return(cb)
+  
 }
