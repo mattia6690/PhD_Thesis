@@ -2,7 +2,7 @@
 ### Create fishnet within polygon ###
 
 # Load the Raster
-ras_10<-raster(paste0(SAO_Vegetationdir,"/ResampleSNAP10m_Export/S2A_USER_MSI_L2A_10m_20150704_N02.04_s2cV2.3_T32TPS.tif"))
+ras_10<-raster(paste0(SAO_Vegetationdir,"/ResampleSNAP10m_Export/T32TPS/S2A_USER_MSI_L2A_10m_20150704_N02.04_s2cV2.3_T32TPS.tif"))
 ras_20<-raster(paste0(SAO_Vegetationdir,"/ResampleSNAP20m_Export/S2A_USER_MSI_L2A_20m_20150704_N02.04_s2cV2.3_T32TPS.tif"))
 
 # Load the Shapefiles
