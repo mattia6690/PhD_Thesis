@@ -11,28 +11,12 @@ source("R/BaseFunctions.R")
 
 ### 1. Read Data ----
 
-lf<-list.files(paste0(InSitu_dir,"/07_FieldCampaign17/02_Station/"),pattern=".csv",full.names=T)
-lf_short<-list.files(paste0(InSitu_dir,"/07_FieldCampaign17/02_Station/"),pattern=".csv")
-
-stats<-do.call(rbind,str_split(lf_short,"_"))[,1]
-oi<-do.call(rbind,lapply(lf,read_csv))
-oi$Date<-as.Date(sprintf("%06s",oi$Date),"%d%m%y")
-
-aggr<-oi %>% group_by(FOI,Date,SubID)
-aggr2<-ungroup(aggr)
-
-
-
-
-write.csv(do.call(rbind.fill,hyperlist),file = paste0(MetricsDir,"HyperSpecFrequency.csv"))
-
-
-write.csv(aggr2,file = paste0(MetricsDir,"/InSituMetrics.csv"))
+aggr2<-read_csv(file = paste0(MetricsDir,"InSituMetrics.csv"))
+stats<-aggr2 %>% select(FOI) %>% unique %>% unlist %>% as.character
 
 # Plot configs
 startdsipdate <-as.Date("2017-05-01")
 enddispdate   <-as.Date("2017-10-15")
-
 
 ### 2. Plot Data ----
 for(j in stats){
@@ -129,7 +113,7 @@ g1<-ggplot(oi,aes(x=NDVI2,y=NDVI1))+geom_point(alpha=.3)+
   ggtitle("Comparison of Hyperspectral NDVI")+
   geom_abline(color="brown",linetype="dotted")+
   geom_smooth(method="lm",se=F,linetype="dotted")+
-  ylab("NDVI +- 2nm, DECAGON1")+xlab("PRI +- 12nm, DECAGON2")
+  ylab("NDVI +- 2nm, DECAGON1")+xlab("NDVI +- 12nm, DECAGON2")
 g2<-ggplot(oi,aes(x=NDVI4,y=NDVI1))+geom_point(alpha=.3)+
   ggtitle("Comparison of Hyperspectral NDVI")+
   geom_abline(color="brown",linetype="dotted")+
@@ -142,7 +126,7 @@ g3<-ggplot(oi,aes(x=NDVI4,y=NDVI2))+geom_point(alpha=.3)+
   ylab("NDVI +- 12nm, DECAGON2")+xlab("NDVI +- 30nm & 115nm, SENTINEL2")
 
 ga1<-grid.arrange(g0,g1,g2,g3, nrow=2, ncol=2,top="Comparison of the different PRI/NDVI Computations")
-ggsave(paste0("09_Visualization/PRI_NDVI_Comparison.png"),plot=ga1,width = 10,height = 7.71)
+ggsave(plot = ga1,paste0(InSitu_dir,"09_Visualization/PRI_NDVI_Comparison.png"),device = "png",width = 10,height = 7.71)
 
 ####* 2.4 Heatmap plot of the Pearson Correlation (overall) ----
 aggr3 <-aggr2 %>% dplyr::select(.,c(PRI1:SW_perc)) %>% select(c(PRI1,NDVI1,LAI,BioWet,BioWatRawPerc,SW_perc))
@@ -187,63 +171,36 @@ for(foi1 in fois){
 
 ## 3. Boxplot with all Stations combined ----
 
-aggr_alpenv<-aggr[which(aggr$FOI=="Vimes1500"|aggr$FOI=="P2"),]
+#aggr_alpenv<-aggr2 %>% filter(FOI=="Vimes1500"| FOI=="P2" | FOI=="Vimef2000")
+aggr_alpenv<-aggr2 %>% filter(FOI=="Domef1500"|FOI=="Domef2000")
+alpOUT<-paste0(InSitu_dir,"09_Visualization/Station_Combo/")
 
+str<-list("LAI","NDVI","Wet biomass", "Biomass Water percentage","Soil water content")
+column<-list("LAI","NDVI1","BioWet","BioWatRawPerc","SW_perc")
+ylims<-list(c(0,7),c(0,1),c(0,700),c(0,100),c(0,100))
+list(str,column,ylims)
 
-str<-"LAI over time"
-tst<-ggplot()+
-  geom_smooth(data=aggr,aes(x=Date,y=LAI,color=FOI),se=F)+
-  geom_boxplot(data=aggr,aes(x=Date,y=LAI,group=interaction(Date,FOI),fill = FOI))+ 
-  scale_x_date()+
-  ggtitle(paste0(str," - Field Campaign 2017"))
-ggsave(paste0(InSitu_dir,"09_Visualization/Station_Combo/",str,".png"),
-       plot=tst,device="png",width = 15.2,height = 7.71)
-
-str<-"NDVI over time"
-tst<-ggplot()+
-  geom_smooth(data=aggr,aes(x=Date,y=NDVI1,color=FOI),se=F)+
-  geom_boxplot(data=aggr_alpenv,aes(x=Date,y=NDVI1,group=interaction(Date,FOI),fill = FOI))+ 
-  scale_x_date()+
-  ggtitle(paste0(str," - Field Campaign 2017"))
-ggsave(paste0(InSitu_dir,"09_Visualization/Station_Combo/",str,".png"),
-       plot=tst,device="png",width = 15.2,height = 7.71)
-
-str<-"Wet Biomass Extraction over time"
-tst<-ggplot()+
-  geom_smooth(data=aggr_alp,aes(x=Date,y=BioWet,color=FOI),se=F)+
-  geom_boxplot(data=aggr,aes(x=Date,y=BioWet,group=interaction(Date,FOI),fill = FOI))+ 
-  scale_x_date()+
-  ggtitle(paste0(str," - Field Campaign 2017"))
-ggsave(paste0(InSitu_dir,"09_Visualization/Station_Combo/",str,".png"),
-       plot=tst,device="png",width = 15.2,height = 7.71)
-
-str<-"Biomass Water Percentage over Time"
-tst<-ggplot()+
-  geom_smooth(data=aggr,aes(x=Date,y=BioWatRawPerc,color=FOI),se=F)+
-  geom_boxplot(data=aggr,aes(x=Date,y=BioWatRawPerc,group=interaction(Date,FOI),fill = FOI))+ 
-  scale_x_date()+
-  ggtitle(paste0(str," - Field Campaign 2017"))
-ggsave(paste0(InSitu_dir,"09_Visualization/Station_Combo/",str,".png"),
-       plot=tst,device="png",width = 15.2,height = 7.71)
-
-str<-"Soil Water Content over Time"
-tst<-ggplot()+
-  geom_smooth(data=aggr,aes(x=Date,y=SW_perc,color=FOI),se=F)+
-  geom_boxplot(data=aggr,aes(x=Date,y=SW_perc,group=interaction(Date,FOI),fill = FOI))+ 
-  scale_x_date()+
-  ggtitle(paste0(str," - Field Campaign 2017"))
-ggsave(paste0(InSitu_dir,"09_Visualization/Station_Combo/",str,".png"),
-       plot=tst,device="png",width = 15.2,height = 7.71)
+pmap(list(str,column,ylims),function(j,k,v,dat=aggr_alpenv,dir=alpOUT){
+  
+  tst<-ggplot(dat,aes(x=Date,y=get(k),group=interaction(Date,FOI),fill = FOI))+
+    geom_boxplot()+
+    ylab(j)+
+    ylim(c(v[1],v[2]))+
+    ggtitle(paste0("Field Campaign 2017 - ",j))
+  ggsave(plot=tst,filename = paste0(dir,k,".png"),device="png",width = 15.2,height = 7.71)
+  
+})
 
 #* 3.1. Boxplot for AlpEnv ----
 
-aggr_alpenv<-aggr[which(aggr$FOI=="Vimes1500"|aggr$FOI=="P2"),]
+aggr_alpenv<-aggr %>% filter(FOI=="Vimes1500"| FOI=="P2")
 
 str<-"LAI over time"
 tst<-ggplot()+
   geom_boxplot(data=aggr_alpenv,aes(x=Date,y=LAI,group=interaction(Date,FOI),fill = FOI))+ 
   scale_fill_manual(values = c("goldenrod", "forestgreen"))+
   scale_x_date()+
+  ylim(c(0,7))+
   ggtitle(paste0(str," - Field Campaign 2017"))+
   xlim(startdsipdate,enddispdate)
 ggsave(paste0(InSitu_dir,"09_Visualization/Station_Combo/",str,".png"),
@@ -254,6 +211,7 @@ tst<-ggplot()+
   geom_boxplot(data=aggr_alpenv,aes(x=Date,y=NDVI1,group=interaction(Date,FOI),fill = FOI))+ 
   scale_fill_manual(values = c("goldenrod", "forestgreen"))+
   scale_x_date()+
+  ylim(c(0,1))+
   ggtitle(paste0(str," - Field Campaign 2017"))+
   xlim(startdsipdate,enddispdate)
 
@@ -265,6 +223,7 @@ tst<-ggplot()+
   geom_boxplot(data=aggr_alpenv,aes(x=Date,y=BioWatRawPerc,group=interaction(Date,FOI),fill = FOI))+ 
   scale_fill_manual(values = c("goldenrod", "forestgreen"))+
   scale_x_date()+
+  ylim(c(0,100))+
   ggtitle(paste0(str," - Field Campaign 2017"))
 ggsave(paste0(InSitu_dir,"09_Visualization/Station_Combo/",str,".png"),
        plot=tst,device="png",width = 15.2,height = 7.71)
@@ -274,21 +233,47 @@ tst<-ggplot()+
   geom_boxplot(data=aggr_alpenv,aes(x=Date,y=BioWet,group=interaction(Date,FOI),fill = FOI))+ 
   scale_fill_manual(values = c("goldenrod", "forestgreen"))+
   scale_x_date()+
+  ylim(c(0,800))+
   ggtitle(paste0(str," - Field Campaign 2017"))
 ggsave(paste0(InSitu_dir,"09_Visualization/Station_Combo/",str,".png"),
        plot=tst,device="png",width = 15.2,height = 7.71)
 
 
-# 4. Measurement Frequencies ----
+# 4. Per Station Statistics ----
 
-#* 4.1 Hyperspectral ----
+alpOUT<-paste0(InSitu_dir,"09_Visualization/Station_AllYear/")
 
-hyperMeas<-aggr2 %>% select(Date,FOI,NDVI1) %>% select(-NDVI1) %>% group_by(Date,FOI) %>% summarize %>% ungroup
-hyperlist<-list()
-for(i in 1:length(stats)){
-  
-  h2<-hyperMeas$Date[which(hyperMeas$FOI==stats[i])] %>% cbind.data.frame()
-  colnames(h2)<-stats[i]
-  hyperlist[[i]]<-h2
-}
+#* 4.1 Per Station ----
+
+dates<- aggr2 %>% select(Date,FOI) %>% distinct %>% arrange(Date)
+dates$Date<-as.character(dates$Date)
+table.png(dates,"Dates_and_Stations",dir=alpOUT,res=200)
+
+bS<-aggr2 %>% filter(!is.na(NDVI1)) %>% select(FOI) %>% 
+  table %>% as.tibble %>% setNames(.,c("FOI","Spectrometer"))
+
+bS<-aggr2 %>% filter(!is.na(LAI)) %>% select(FOI) %>% 
+  table %>% as.tibble %>% setNames(.,c("FOI","LAI2200")) %>% right_join(bS,.,"FOI")
+
+bS<-aggr2 %>% filter(!is.na(BioWet)) %>% select(FOI) %>% 
+  table %>% as.tibble %>% setNames(.,c("FOI","Phytomass Samples")) %>% right_join(bS,.,"FOI")
+
+bS<-aggr2 %>% filter(!is.na(SW_perc)) %>% select(FOI) %>%
+  table %>% as.tibble %>% setNames(.,c("FOI","Soil Water Content")) %>% right_join(bS,.,"FOI")
+
+newrow<-c("ALL",sum(bS$Spectrometer),sum(bS$LAI2200),sum(bS$`Phytomass Samples`),sum(bS$`Soil Water Content`))
+bS<-rbind.data.frame(bS,newrow)
+table.png(bS,"Station_Measurements_Approach_2017",dir=alpOUT,res=200)
+
+#* 4.2 Per Station AND Parameter  ----
+Stationtab<-aggr2 %>% 
+  group_by(FOI) %>% 
+  dplyr::summarise(
+    MeanWaterPerc=mean(BioWatRawPerc,na.rm=T),StdevWaterPerc=sd(BioWatRawPerc,na.rm=T),
+    MeanBiomass=mean(BioWet,na.rm=T),StdevBiomass=sd(BioWet,na.rm=T),
+    MeanNDVI=mean(NDVI1,na.rm=T),StdevNDVI=sd(NDVI1,na.rm=T),
+    MeanLAI=mean(LAI,na.rm=T),StdevLAI=sd(LAI,na.rm=T),
+    MeanSWC=mean(SW_perc,na.rm=T),StdevSWC=sd(SW_perc,na.rm=T))
+
+table.png(Stationtab,"Station_metrics_2017_mean",dir=alpOUT,res=200)
 
