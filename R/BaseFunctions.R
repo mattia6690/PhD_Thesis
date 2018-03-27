@@ -22,6 +22,9 @@ loadandinstall("RColorBrewer")
 loadandinstall("rasterVis")
 loadandinstall("Rlof")
 loadandinstall("scales")
+loadandinstall("caret")
+loadandinstall("dlnm")
+loadandinstall("modelr")
 
 # 2. Define Directories ----
 
@@ -37,6 +40,7 @@ InSitu_dir<-paste0(DataDir,"/03_InSitu/")
   dirfield<-paste0(InSitu_dir,"07_FieldCampaign17/")
   dirstat<-paste0(InSitu_dir,"07_FieldCampaign17/00_Raw/")
 MonalisaDir<-paste0(DataDir,"04_MONALISA/")
+Monalisa17Dir<-paste0(DataDir,"04a_MONALISA17/")
 ProviceDir<- paste0(DataDir,"05_Province/")
 MetricsDir<- paste0(DataDir,"06_Metrics/")
 
@@ -93,6 +97,8 @@ simpleCap <- function(x) {
         sep = "", collapse = " ")
 }
 
+# Factors to numeric conversion
+as.numeric.factor <- function(x) {as.numeric(as.character(x))}
 
 #* 4.2. InSitu Functions ----
 
@@ -142,6 +148,24 @@ hypindices<-function(input,wavel1,wavel2,stat="NDVI"){
   
 }
 
+#' Get the Density Limits
+.getDensityLimits<-function(selection,method="max"){
+  
+  den<-density(selection)
+  peak<-den$x[den$y==max(den$y,na.rm = T)]
+  Iqrmax<-peak+IQR(selection)*1.5
+  if(method=="max"){
+    upper<-max(selection)
+    diff<-upper-peak
+    lower<-peak-diff
+  } else if(method=="sd"){
+    upper<-peak+(2*sd(selection))
+    lower<-peak-(2*sd(selection))
+  } else{stop("No valid method for Density Function")}
+  
+  return(c(lower,peak,upper,Iqrmax))
+  
+}
 
 #* 4.3 Remote Sensing Funtions ----
 
@@ -232,15 +256,46 @@ rasterLmask<-function(rasterList,values){
 }
 
 #* 4.4. Plotting ----
+
+# Make a nice Corplot by excluding one side (less redundancy)
 get_upper_tri <- function(cormat){
   cormat[lower.tri(cormat)]<- NA
   return(cormat)
 }
 
 
+# Convert a table to Latex and then PNG
+table.png <- function(obj, name, dir=NA ,res=100) { 
+  first <- name
+  name <- paste(name,".tex",sep="")
+  sink(file=name)
+  cat('
+      \\documentclass{report}
+      \\usepackage[paperwidth=5.5in,paperheight=7in,noheadfoot,margin=0in]{geometry}
+      \\begin{document}\\pagestyle{empty}
+      ')
+  print(xtable::xtable(obj))
+  cat('
+      \\end{document}
+      ')
+  sink()
+  tools::texi2dvi(file=name)
+  cmd <- paste0("dvipng -D ",res,"in -T tight ", shQuote(paste(first,".dvi",sep="")))
+  invisible(system(cmd))
+  cleaner <- c(".tex",".aux",".log",".dvi")
+  invisible(file.remove(paste(first,cleaner,sep="")))
+  
+  if(!is.na(dir)) {
+    to<-paste0(dir,first,".png")
+    from<-paste0(first,"1.png")
+    file.copy(from,to,overwrite = T)
+  }
+}
+
+
 #* 4.5. Combine Metrics ----
 
-# Check for the nearest date within a rangeand extrac
+# Check for the nearest date within a range and extrac
 nearDate<-function(obj1,obj2,maxdays,valuesonly=T){
   
   nmat<-data.frame()
