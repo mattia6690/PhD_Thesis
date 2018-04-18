@@ -4,6 +4,7 @@ source("R/BaseFunctions.R")
 # 2. Input ----
 
 station<-"vimes1500"
+dir<-paste0(MetricsDir,station,"/")
 
 # Read the Metrics
 # InSitu
@@ -14,48 +15,60 @@ suffix<-"151217"
 sentinel2_raw<-readRDS(paste0(MetricsDir,"S2_Filtered_NDVI_",suffix,".rds"))
 
 # Monalisa
-monalisa_raw<- readRDS(paste0(MetricsDir,"Monalisa_NDVI_filtered.rds"))
+monalisa_raw<- readRDS(paste0(MetricsDir,"Monalisa_NDVI_filtered_MovingWindow.rds"))
 monalisa_raw<- monalisa_raw %>% filter(Value!="NaN") %>% 
   mutate(Value=as.numeric.factor(Value)) %>% 
   filter(Value>0)
 
 # PhenoCam
-
-phenodat<-readRDS(paste0(PhenocamDir,"ROI6NDVI.rds"))
+phenodat<-readRDS(paste0(PhenocamDir,"phenodat2.rds"))
 
 # Managements
 Manage<-readRDS(file = paste0(DataDir,"/Management/",station,"_Management_2017.rds"))
 
-dir<-paste0(MetricsDir,station,"/")
-
 #* 2.1. Select the Data ----
 
-# Old Monalisa Approach
-mnls<-monalisa_raw %>% 
-  filter(grepl("10:30",Date)) %>% 
-  filter(Station==station)
-mnls$Date<-mnls$Date %>% as_date
-mnls$Value<-mnls$Value %>% as.character %>% as.numeric
-
-# New Monalisa Approach
+# Monalisa
 mnls<-monalisa_raw %>% filter(Station=="vimes1500")
-
-alltab<-rbind(insitu_raw,sentinel2_raw,mnls)
-alltabstat<- alltab %>% filter(Station==station)
 
 s2<-sentinel2_raw %>% 
   filter(Station==station) %>% 
   filter(OP2=="NDVI") %>% 
   filter(OP3=="Mean") %>% 
-  filter(Value!="NaN")
-s2$Date<-s2$Date %>% as_date
-s2$Value<-s2$Value %>% as.character %>% as.numeric %>% `/`(10000)
+  filter(Value!="NaN") %>% 
+  mutate(Value=Value/10000)
 
 groundN<-insitu_raw %>% 
   filter(Station=="Vimes1500") %>% 
   filter(OP2=="NDVI") %>% 
   group_by(Date,OP2) %>% summarise(Value=mean(Value)) %>% ungroup
 groundN$Date<-groundN$Date %>% as.Date(format="%d%m%y")
+
+phenodat<-phenodat %>% setNames(.,c("Date","Value"))
+
+ggplot(groundN,aes(Date,Value))+
+  geom_point()+
+  geom_line()+
+  ggtitle("Smoothed NDVI InSitu for Station Vimes1500 in 2017")+
+  ylab("NDVI")+
+  ylim(c(.5,1))
+
+m.ndvi<-mnls %>% select(Date,Value) %>% setNames(c("Date","Monalisa"))
+s.ndvi<-s2 %>% select(Date,Value) %>% setNames(c("Date","Sentinel"))
+p.ndvi<-phenodat %>% select(Date,Value) %>% setNames(c("Date","Phenocam"))
+g.ndvi<-groundN %>% select(Date,Value) %>% setNames(c("Date","Ground"))
+
+ndvi.tab<-full_join(m.ndvi,s.ndvi) %>% 
+  full_join(.,p.ndvi) %>% 
+  full_join(.,g.ndvi) %>% 
+  add_column(Period=3) %>% 
+  arrange(Date) 
+
+ndvi.tab$Period[which(ndvi.tab$Date<Harvest$Date[2])]<-2
+ndvi.tab$Period[which(ndvi.tab$Date<Harvest$Date[1])]<-1
+
+saveRDS(ndvi.tab,file = paste0(MetricsDir,"NDVI_Table_vimes1500_2017.rds"))
+
 
 # 3. Plots of Metrics ----
 
@@ -75,23 +88,23 @@ g1<-ggplot(mnls,aes(Date,Value,color="Decagon"))+theme_light()+ylab("NDVI")+
   ggtitle(paste0("Sensor specific NDVI for Station ",station))
 
 colors<-c("darkgreen","blue","green","chocolate1","brown")
-Harvest<-Manage %>% filter(Value=="Harvest")
+Harvest2<-Manage %>% filter(Value=="Harvest") %>% slice(1:2)
 g2<-ggplot(mnls,aes(Date,Value,color="Decagon"))+theme_light()+ylab("NDVI")+
   geom_point(shape=16)+
   geom_point(data=s2,aes(Date,Value,color="Sentinel-2 MSI"),shape=16)+
   geom_point(data=groundN,aes(Date,Value,color="Spectrometer"),shape=16)+
-  geom_point(data=phenodat,aes(Date,NDVI2,color="PhenoCam"),shape=16)+
-  geom_vline(data=Harvest,aes(xintercept=Date,color=Value),linetype="dashed")+
+  geom_point(data=phenodat,aes(Date,Value,color="PhenoCam"),shape=16)+
+  geom_vline(data=Harvest2,aes(xintercept=Date,color=Value),linetype="dashed")+
   scale_color_manual("Legend",values = c("darkgreen","blue","green","chocolate1","brown"),
                      guide=guide_legend(override.aes = list(
                        linetype = c("blank","dashed","blank","blank","blank"),
                        shape = c(16,NA,16,16,16)
                      )))+
-  scale_x_date(limits=c(as.Date("2017-03-15"),as.Date("2017-10-15")))+
+  scale_x_date(limits=c(as.Date("2017-03-15"),as.Date("2017-11-01")))+
   ggtitle(paste0("Sensor specific NDVI for Station ",station," - with Harvest"))
 
 ggsave(g1,file=paste0(dir,"Combined_NDVI_",station,".png"),device="png",width=10,height=7)
-ggsave(g2,file=paste0(dir,"Combined_NDVI_Management_",station,".png"),device="png",width=10,height=7)
+ggsave(g2,file=paste0(dir,"Combined_NDVI_Management_",station,".png"),device="png",width=10,height=6)
 
 #* 3.2. NDVI & Management ----
 
@@ -145,28 +158,16 @@ g1<-ggplot(dsets[[i]],aes(Date,Value))+theme_light()+ylab("NDVI")+
 ggsave(g1,filename = paste0(dir,"NDVI_",names[i],"_IGARSSManagement_",station,".png"),device="png",width=9,height=7)
   
 #* 3.3. Scale Correlations ----
-#** 3.3.1 MNLS/Sentinel ----
 
-s21<-is.element(mnls$Date,s2$Date) %>% filter(mnls,.)
+cordf<-matrix(nrow=6,ncol=6)
+colnames(cordf)<-c("Scale1","Scale2","R.squared","p-value","RMSE","N")
+cordf[,1]<-c("Spectrometer","Spectrometer","Spectrometer","Decagon","Decagon","Phenocam")
+cordf[,2]<-c("Decagon","Phenocam","Sentinel2","Phenocam","Sentinel2","Sentinel2")
+options(scipen=10)
 
-joins<-right_join(s21,s2,by="Date",suffix=c("_Decagon","_Sentinel")) %>% select(contains("Value")) %>% 
-  .[complete.cases(.),]
 
-rmse<-joins %>% rmse(lm(.),.) %>% round(.,2)
-r2<-joins %>% rsquare(lm(.),.)%>% round(.,2)
+#** Ground/MNLS ----
 
-g1<-ggplot(joins,aes(x=Value_Decagon,y=Value_Sentinel))+
-  geom_point()+
-  geom_smooth(method="lm")+
-  ylab("Sentinel-2 MSI")+xlab("Decagon_NDVI")+
-  ylim(0,1)+xlim(0,1)+
-  ggtitle(paste0("Correlation between Sentinel and Decagon NDVI 2017 - ", station))+
-  annotate("text",x=.9,y=.1,label=paste0("paste(italic(R) ^ 2, \" = ",r2,"\")"),parse=T)+
-  annotate("text",x=.9,y=.05,label=paste0("RMSE = ",rmse))
-
-ggsave(g1,filename = paste0(dir,"NDVI_Correlation_Sentinel_Decagon_",station,".png"),device="png",width=10,height=7)
-
-#** 3.3.2 MNLS/Ground ----
 s21<-is.element(mnls$Date,groundN$Date) %>% filter(mnls,.)
 
 joins<-right_join(s21,groundN,by="Date",suffix=c("_Decagon","_Spectrometer")) %>% select(contains("Value")) %>% 
@@ -174,9 +175,8 @@ joins<-right_join(s21,groundN,by="Date",suffix=c("_Decagon","_Spectrometer")) %>
 
 joins<-joins[-4,] # One outlier
 
-
-lm1<-lm(joins)
 rmse<-joins %>% rmse(lm(.),.) %>% round(.,2)
+pval<-joins %>% lm %>% summary %>% .[["coefficients"]] %>% .[8]
 r2<-joins %>% rsquare(lm(.),.)%>% round(.,2)
 
 g1<-ggplot(joins,aes(x=Value_Decagon,y=Value_Spectrometer))+
@@ -190,7 +190,36 @@ g1<-ggplot(joins,aes(x=Value_Decagon,y=Value_Spectrometer))+
 
 ggsave(g1,filename = paste0(dir,"NDVI_Correlation_Spectrometer_Decagon_",station,".png"),device="png",width=10,height=7)
 
-#** 3.3.3 Sentinel/Ground ----
+cordf[1,3:6]<-round(c(r2,pval,rmse,nrow(joins)),5)
+
+
+#** Ground/Phenocam ----
+
+s21<-is.element(phenodat$Date,groundN$Date) %>% filter(phenodat,.)
+
+joins<-right_join(s21,groundN,by="Date",suffix=c("_Phenocam","_Spectrometer")) %>% select(contains("Value")) %>% 
+  .[complete.cases(.),]
+
+
+rmse<-joins %>% rmse(lm(.),.) %>% round(.,2)
+pval<-joins %>% lm %>% summary %>% .[["coefficients"]] %>% .[8]
+r2<-joins %>% rsquare(lm(.),.)%>% round(.,2)
+
+g1<-ggplot(joins,aes(x=Value_Phenocam,y=Value_Spectrometer))+
+  geom_point()+
+  geom_smooth(method="lm")+
+  ylab("Spectrometer NDVI")+xlab("Phenocam_NDVI")+
+  ylim(0,1)+xlim(0,1)+
+  ggtitle(paste0("Correlation between Spectrometer and Phenocam NDVI 2017 - ", station))+
+  annotate("text",x=.9,y=.1,label=paste0("paste(italic(R) ^ 2, \" = ",r2,"\")"),parse=T)+
+  annotate("text",x=.9,y=.05,label=paste0("RMSE = ",rmse))
+
+ggsave(g1,filename = paste0(dir,"NDVI_Correlation_Spectrometer_Phenocam_",station,".png"),device="png",width=10,height=7)
+
+cordf[2,3:6]<-round(c(r2,pval,rmse,nrow(joins)),5)
+
+
+#** Ground/Sentinel ----
 maxdays<-1
 
 nmat<-nearDate(s2,groundN,maxdays=maxdays)
@@ -198,6 +227,7 @@ colnames(nmat)<-c("Value_Sentinel","Value_Spectrometer","Diff")
 joins<-nmat[,c(1,2)]
 
 rmse<-joins %>% rmse(lm(.),.) %>% round(.,2)
+pval<-joins %>% lm %>% summary %>% .[["coefficients"]] %>% .[8]
 r2<-joins %>% rsquare(lm(.),.)%>% round(.,2)
 
 joins$Diff<-nmat[,3]
@@ -213,6 +243,83 @@ g1<-ggplot(joins,aes(x=Value_Sentinel,y=Value_Spectrometer,color=Diff))+
   annotate("text",x=.9,y=.05,label=paste0("RMSE = ",rmse))
 ggsave(g1,filename = paste0(dir,"NDVI_Correlation_Spectrometer_Sentinel_",station,"_mxD",maxdays,".png"),device="png",width=10,height=7)
 
+cordf[3,3:6]<-round(c(r2,pval,rmse,nrow(joins)),5)
+
+
+#** MNLS/Phenocam ----
+
+s21<-is.element(mnls$Date,phenodat$Date) %>% filter(mnls,.)
+
+joins<-right_join(s21,phenodat,by="Date",suffix=c("_Decagon","_Phenocam")) %>% select(contains("Value")) %>% 
+  .[complete.cases(.),]
+
+rmse<-joins %>% rmse(lm(.),.) %>% round(.,2)
+pval<-joins %>% lm %>% summary %>% .[["coefficients"]] %>% .[8]
+r2<-joins %>% rsquare(lm(.),.)%>% round(.,2)
+
+g1<-ggplot(joins,aes(x=Value_Decagon,y=Value_Phenocam))+
+  geom_point()+
+  geom_smooth(method="lm")+
+  ylab("Phenocam NDVI")+xlab("Decagon NDVI")+
+  ylim(0,1)+xlim(0,1)+
+  ggtitle(paste0("Correlation between Phenocam and Decagon NDVI 2017 - ", station))+
+  annotate("text",x=.9,y=.1,label=paste0("paste(italic(R) ^ 2, \" = ",r2,"\")"),parse=T)+
+  annotate("text",x=.9,y=.05,label=paste0("RMSE = ",rmse))
+
+ggsave(g1,filename = paste0(dir,"NDVI_Correlation_Phenocam_Decagon_",station,".png"),device="png",width=10,height=7)
+
+cordf[4,3:6]<-round(c(r2,pval,rmse,nrow(joins)),6)
+
+
+#** MNLS/Sentinel ----
+
+s21<-is.element(mnls$Date,s2$Date) %>% filter(mnls,.)
+
+joins<-right_join(s21,s2,by="Date",suffix=c("_Decagon","_Sentinel")) %>% select(contains("Value")) %>% 
+  .[complete.cases(.),]
+
+rmse<-joins %>% rmse(lm(.),.) %>% round(.,2)
+pval<-joins %>% lm %>% summary %>% .[["coefficients"]] %>% .[8]
+r2<-joins %>% rsquare(lm(.),.)%>% round(.,2)
+
+g1<-ggplot(joins,aes(x=Value_Decagon,y=Value_Sentinel))+
+  geom_point()+
+  geom_smooth(method="lm")+
+  ylab("Sentinel-2 MSI")+xlab("Decagon_NDVI")+
+  ylim(0,1)+xlim(0,1)+
+  ggtitle(paste0("Correlation between Sentinel and Decagon NDVI 2017 - ", station))+
+  annotate("text",x=.9,y=.1,label=paste0("paste(italic(R) ^ 2, \" = ",r2,"\")"),parse=T)+
+  annotate("text",x=.9,y=.05,label=paste0("RMSE = ",rmse))
+
+ggsave(g1,filename = paste0(dir,"NDVI_Correlation_Sentinel_Decagon_",station,".png"),device="png",width=10,height=7)
+
+cordf[5,3:6]<-round(c(r2,pval,rmse,nrow(joins)),5)
+
+#** Phenocam/Sentinel ----
+
+s21<-is.element(phenodat$Date,s2$Date) %>% filter(phenodat,.)
+
+joins<-right_join(s21,s2,by="Date",suffix=c("_Phenocam","_Sentinel")) %>% select(contains("Value")) %>% 
+  .[complete.cases(.),]
+
+rmse<-joins %>% rmse(lm(.),.) %>% round(.,2)
+pval<-joins %>% lm %>% summary %>% .[["coefficients"]] %>% .[8]
+r2<-joins %>% rsquare(lm(.),.)%>% round(.,2)
+
+g1<-ggplot(joins,aes(x=Value_Phenocam,y=Value_Sentinel))+
+  geom_point()+
+  geom_smooth(method="lm")+
+  ylab("Phenocam NDVI")+xlab("Decagon NDVI")+
+  ylim(0,1)+xlim(0,1)+
+  ggtitle(paste0("Correlation between Phenocam and Decagon NDVI 2017 - ", station))+
+  annotate("text",x=.9,y=.1,label=paste0("paste(italic(R) ^ 2, \" = ",r2,"\")"),parse=T)+
+  annotate("text",x=.9,y=.05,label=paste0("RMSE = ",rmse))
+
+ggsave(g1,filename = paste0(dir,"NDVI_Correlation_Phenocam_Decagon_",station,".png"),device="png",width=10,height=7)
+
+cordf[6,3:6]<-round(c(r2,pval,rmse,nrow(joins)),5)
+
+table.png(cordf,name="Correlation Table",dir=MetricsDir,res=200)
 
 #* 3.4. Biomass Correlations ----
 
@@ -365,6 +472,35 @@ par(mfrow=c(1,2))
 oi<-mnlssub$Value %>% diff()
 plot(oi)
 acf(oi, lag.max=20)
+
+Harvests<-Manage %>% 
+  filter(Value=="Harvest") %>% 
+  select(Date) %>% 
+  add_column("BioWet"=NA) %>% 
+  add_column("LAI"=NA)
+
+laiwettab<-insitu_raw %>% 
+  filter(Station==simpleCap(station)) %>% 
+  filter(OP3=="LAI"|OP3=="BioWet") %>% 
+  mutate(Date= .$Date %>% as.Date(format="%d%m%y")) %>% 
+  group_by(Date,OP3) %>% 
+  dplyr::summarize(Mean=mean(Value)) %>% 
+  spread(OP3,Mean) %>% 
+  ungroup
+
+
+ggtab<-bind_rows(laiwettab,Harvests) %>% arrange(Date)
+
+ggplot(ggtab,aes(x=Date))+
+  geom_line(aes(y=BioWet/100,color="Wet Biomass"))+
+  geom_point(aes(y=BioWet/100,color="Wet Biomass"))+
+  geom_line(aes(y=LAI,color="Leaf Area Index"))+ 
+  geom_point(aes(y=LAI,color="Leaf Area Index"))+ 
+  ylim(c(0,7))+
+  labs(y="Leaf Area Index",color="Variable")+
+  scale_y_continuous(sec.axis = sec_axis(~.*100, name = "Wet Biomass (g)"))+
+  theme(legend.position = c(0.9, 0.9))+
+  ggtitle("In Situ collected LAI and Wet Biomass in 2017 - Vimes1500")
 
 
 
