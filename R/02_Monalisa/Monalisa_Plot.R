@@ -4,6 +4,17 @@
 savePlot==T
 lf_deca<-readRDS(lf_deca,paste0(MetricsDir,"Monalisa_NDVI.rds"))
 
+#* Plot the Raw Decagon NDVIs ----
+
+g1<-ggplot(lf_deca,aes(x=Date,y=Value))+
+  geom_point()+
+  ggtitle("Decagon NDVI of 2017 - Unfiltered")+
+  facet_grid(Station~.)
+
+name.g1<-paste0(Monalisa17Dir,"Decagon_NDVI_2017_Unfiltered_All.png")
+if(savePlot==T) ggsave(g1, filename = name.g1, device = "png", width = 7, height=11)
+
+
 # NDVI at Daytime ----
 
 time<-"1030"
@@ -57,3 +68,34 @@ g4<-ggplot(lf10,aes(x=Time,y=Value,color=Date))+
   facet_grid(Station~.)
 
 ggsave(g4,filename = paste0(Monalisa17Dir,"Decagon_NDVI_",f,"_to_",t,".png"),device = "png",width = 7,height=11)
+
+
+
+step1<-filter.data1 
+step2<-filter.data2
+
+step11<-step1 %>%  group_by(Date) %>% nest %>% slice(dates.day[[2]]) %>% unnest
+step21<-step1 %>%  group_by(Date) %>% nest %>% slice(dates.day[[2]]) %>% unnest
+
+f<-min(step11$Date) %>% str_replace_all(.,"-","")
+t<-max(step11$Date) %>% str_replace_all(.,"-","")
+
+g4<-ggplot(step11,aes(x=Time,y=Value,color=Date))+
+  geom_point()+
+  ggtitle(paste0("DECAGON NDVI from ",f," to ",t))+
+  ylim(c(-1,1))+
+  scale_x_time(limits=c(3*3600,18*3600))+
+  facet_grid(Station~.)
+
+g5<-ggplot(step21,aes(x=Time,y=Value,color=Date))+
+  geom_point()+
+  ggtitle(paste0("DECAGON NDVI from ",f," to ",t))+
+  ylim(c(-1,1))+
+  scale_x_time(limits=c(3*3600,18*3600))+
+  facet_grid(Station~.)
+
+ggsave(g4,filename = paste0(Monalisa17Dir,"Decagon_NDVI_",f,"_to_",t,"Filter1.png"),device = "png",width = 7,height=11)
+ggsave(g5,filename = paste0(Monalisa17Dir,"Decagon_NDVI_",f,"_to_",t,"Filter2.png"),device = "png",width = 7,height=11)
+
+
+
