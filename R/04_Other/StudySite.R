@@ -1,5 +1,5 @@
 
-source("R/BaseFunctions.R")
+source("C:/Users/MRossi/Documents/07_Codes/PhD_Thesis/R/BaseFunctions.R")
 laodandinstall("ggmap")
 loadandinstall("ggsn")
 loadandinstall("broom")
@@ -47,8 +47,9 @@ g1<-ggmap(mymap)+
 
 ggsave(g1,filename = paste0(DataDir,"Images/StudySites.png"),device = "png",height=8,width=11)
 
-plot(ITA,col="khaki1")
-plot(ST,add=TRUE,col="lightcoral")
+eurac.color<-rgb(208,77,31,maxColorValue = 255)
+plot(ITA,border="mediumseagreen")
+plot(ST,add=TRUE,col=eurac.color,border="mediumseagreen")
 
 # Italy and South Tyrol Plot
 g2<-ggplot()+theme_minimal()+
