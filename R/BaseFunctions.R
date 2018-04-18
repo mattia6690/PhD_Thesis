@@ -12,7 +12,7 @@ loadandinstall("grid")
 loadandinstall("lattice")
 loadandinstall("rgdal")
 loadandinstall("lubridate")
-loadandinstall("ggmap")
+#loadandinstall("ggmap")
 loadandinstall("tidyverse")
 loadandinstall("reshape2")
 loadandinstall("leaflet")
@@ -25,6 +25,8 @@ loadandinstall("scales")
 loadandinstall("caret")
 loadandinstall("dlnm")
 loadandinstall("modelr")
+loadandinstall("DMwR")
+loadandinstall("hms")
 
 # 2. Define Directories ----
 
@@ -341,4 +343,27 @@ nearDate<-function(obj1,obj2,maxdays,valuesonly=T){
   }
   return(cb)
   
+}
+
+# Add Value from nearest Date for RandomFores Sampling
+addNear<-function(oldtab,newtab,col="Sentinel"){
+  
+  newtab2<-newtab %>% filter(is.na(get(col))) %>% select(Date)
+  wh<-which(is.na(newtab[[col]]))
+  values<-array()
+  
+  for(i in 1:nrow(newtab2)){
+    date<-newtab2[i,]
+    dates<-oldtab %>% select(Date)
+    dt<-map(1:nrow(dates), function(i) dates[i,]-date) %>% unlist %>% as.numeric %>% abs
+    if(any(dt<5)){
+      
+      rws<-which.min(dt)
+      newval<-oldtab %>% slice(rws) %>% select(eval(col)) %>% as.numeric
+      values[[i]]<-newval
+    } else values[[i]]<-NA
+  }
+  
+  newtab[[col]][wh]<-values
+  return(newtab)
 }
