@@ -12,7 +12,7 @@ source("R/BaseFunctions.R")
 ### 1. Read Data ----
 
 aggr2<-read_csv(file = paste0(MetricsDir,"InSituMetrics.csv"))
-stats<-aggr2 %>% select(FOI) %>% unique %>% unlist %>% as.character
+stats<-aggr2 %>% select(Station) %>% unique %>% unlist %>% as.character
 
 # Plot configs
 startdsipdate <-as.Date("2017-05-01")
@@ -29,7 +29,7 @@ for(j in stats){
   str4b<-"PRI"
   
   #Aggregate...
-  All   <- oi  %>% group_by(Date,SubID)%>% filter(FOI==j)
+  All   <- aggr2  %>% group_by(Date,SubID)%>% filter(FOI==j)
   LAI   <- All %>% summarize(Mean=mean(LAI,na.rm=T),Se=se(LAI)) 
   SW    <- All %>% summarize(Mean=mean(SW_perc,na.rm=T),Se=se(SW_perc))
   Hyper <- All %>% summarize(
@@ -41,7 +41,8 @@ for(j in stats){
   #* 2.1. General LinePlot of all Metrics ----
   # LAI
   LAIp<-ggplot(LAI,aes(x=Date,y=Mean,color=SubID))+ ylab(str1)+
-    geom_line(size=1.2)+geom_point()+
+    geom_line(size=1.2)+
+    geom_point()+
     geom_errorbar(aes(ymin=Mean-Se,ymax=Mean+Se),width=.3)+
     scale_x_date(limits=c(startdsipdate,enddispdate))+
     ggtitle(paste(str1,"over time of",j,"Station - 2017"))

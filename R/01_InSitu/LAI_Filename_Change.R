@@ -11,7 +11,6 @@ lai.dir.out<-dirlai %>% paste0("/")
 # Rename the LAI files and move to new direcory
 LAIrename<- function(indir,outdir){
   
-  
   lf<- list.files(lai.dir.in,full.names = T)
   
   # 3. Process ----
