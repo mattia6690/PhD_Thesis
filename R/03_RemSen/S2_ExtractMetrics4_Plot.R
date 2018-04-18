@@ -139,9 +139,6 @@ g1<-ggmap(mymap)+
 ggsave(g1,filename = paste0(MetricsDir,"/Sentinel/ShapefilePoint.png"),device="png")
 
 
-#* 6.2 Levelplot alternative ----
-
-lp(r2)
 
 ####### Tests ----
 

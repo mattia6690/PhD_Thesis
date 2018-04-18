@@ -55,4 +55,51 @@ oi2@data$Name<-oi2@data$Name %>% tolower
 oi2_shape@data$Name<-oi2_shape@data$Name %>% tolower
 
 #* 3.3 Generate Buffer ----
-oi2buff<-gBuffer(oi2,byid=T,width=1500)
+oi2buff<-gBuffer(oi2,byid=T,width=1000)
+
+
+# Easy plotting
+
+station<-"vimes1500"
+station_pnt<-oi2[5,]
+station_shp<-oi2_shape[6,]
+station_buff<-oi2buff[5,]
+
+recl<-rbind(c(-10001,10001,1),
+            c(-21001,-20999,2),
+            c(-22001,-21999,3),
+            c(-23001,-22999,4),
+            c(-24001,-23999,5),
+            c(-25001,-24999,6),
+            c(-26001,-25999,7))
+
+list<-cbind(c("No Masking","Snow","Shadow","Refl. Error","Clouds","LandCover","NoData"),
+            c("green","lightskyblue","Black","darkred","white","red","yellow")) %>% as.tibble
+
+
+for(i in 1:length(sao_ndvi_lf)){
+
+  name<-sao_ndvi_lf[i]
+  date<-S2_dir2date(name)
+  r<-raster(name)
+  
+  rct<-crop(r,station_buff)
+  colnames(recl)<-c("From","To","Class")
+  recl<-as.tibble(recl) %>% mutate(From=as.numeric(From)) %>% mutate(To=as.numeric(To))
+  r2<-reclassify(rct,recl)
+  
+  vls<- unique(r2)
+  list2<-list[vls,]
+  items<-list2[,1] %>% as.matrix
+  cols<-list2[,2] %>% as.matrix
+  
+  png(filename = paste0(RemsenDir,"S2_Cover/",station,"_",i,".png"),width=600,height=600)
+  plot(r2,legend=F,col=cols)
+  plot(station_shp,add=T)
+  plot(station_pnt,add=T)
+  title(paste(station,date))
+  legend("topright",legend=items,fill=cols,bg = "white")
+  dev.off()
+}
+
+
