@@ -3,6 +3,12 @@
 library("devtools")
 install_github("mattia6690/Mfunctions");library(Mfunctions)
 loadandinstall("raster")
+loadandinstall("plyr")
+loadandinstall("dplyr")
+loadandinstall("tidyr")
+loadandinstall("purrr")
+library("ggplot2")
+loadandinstall("magrittr")
 loadandinstall("readr")
 loadandinstall("rgeos")
 loadandinstall("stringr")
@@ -12,8 +18,6 @@ loadandinstall("grid")
 loadandinstall("lattice")
 loadandinstall("rgdal")
 loadandinstall("lubridate")
-#loadandinstall("ggmap")
-loadandinstall("tidyverse")
 loadandinstall("reshape2")
 loadandinstall("leaflet")
 loadandinstall("jsonlite")
@@ -27,6 +31,7 @@ loadandinstall("dlnm")
 loadandinstall("modelr")
 loadandinstall("DMwR")
 loadandinstall("hms")
+loadandinstall("tibble")
 
 # 2. Define Directories ----
 
@@ -45,6 +50,7 @@ MonalisaDir<-paste0(DataDir,"04_MONALISA/")
 Monalisa17Dir<-paste0(DataDir,"04a_MONALISA17/")
 ProviceDir<- paste0(DataDir,"05_Province/")
 MetricsDir<- paste0(DataDir,"06_Metrics/")
+ManagementDir<-paste0(DataDir,"Management/")
 
 #* 2.2 Directory2: Server Workspace ----
 WorkspaceDir<-"Y:/Workspaces/RosM/"
@@ -57,10 +63,7 @@ SAO_Metadir<- paste0(SAO_Vegetationdir,"Metadata_xmls")
 
 
 # 3. Global Input ----
-
 sen2names<-c("Platform","Sensor","Level","GResol","AcqDate","Baseline","Sen2Cor","Tile","ProdDescr","Product","Projection")
-
-
 
 # 4.Central Functions ----
 
