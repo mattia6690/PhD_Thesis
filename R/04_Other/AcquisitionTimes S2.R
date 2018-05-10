@@ -21,7 +21,8 @@ outline<-inter2 %>% group_by(Inside_AC) %>% summarize()
 s2kmltable<-function(kmlfile){
   
   rl<-readLines(kmlfile)
-  re1 <- "\t\t\t\t\t<name>" %>% grep(.,rl)
+  re1 <- grep("                  <name>" ,rl)
+  if(length(re1)==0) re1 <- grep("\t\t\t\t\t<name>" ,rl)
   
   start<-re1[-length(re1)]
   end<-re1[-1]
@@ -29,7 +30,7 @@ s2kmltable<-function(kmlfile){
   test<-map2(start,end,function(i,j){
     
     re2<-rl[i:j]
-    re2rep<-str_replace_all(re2,"\t\t\t\t\t","")
+    re2rep<-str_replace_all(re2,"                  ","")
     
     str2<-"<Data name" %>% grep(.,re2rep) %>% re2rep[.]
     names<-str_split(str2,pattern='"') %>% lapply(.,function(i) i[2]) %>% unlist
@@ -77,11 +78,12 @@ satellite<- urls %>%
   map(.,function(i) str_split(i,pattern="_") %>% unlist %>% .[1]) %>% 
   unlist
 
-maps<-map2(urls,satellite,function(urls,sa){
+maps<-map2(urls,satellite,function(url,sa){
+  print(url)
   
-  name<- basename(urls)
+  name<- basename(url)
   file<- paste0(tempdir,name)
-  if(!file.exists(file)) download.file(urls,file)
+  if(!file.exists(file)) download.file(url,file)
   sr<-st_read(file)
   
   table<-s2kmltable(file) %>% 
@@ -98,21 +100,28 @@ lj3<-lj2 %>%
   arrange(ObservationTimeStart) %>% 
   mutate(Satellite2=as.numeric(ifelse(Satellite=="Sentinel-2B",2,1)))
 
+dates<-as_date(lj3$ObservationTimeStart)
 
-from<-as_date(lj3$ObservationTimeStart) %>% min
-to<-as_date(lj3$ObservationTimeStart) %>% max
+from<-dates %>% min
+to<-dates %>% max
 
-fileout <- paste0(sentineldir,"AcquisitionPlan_",from,"_to_",to)
-ggtitle <- paste("Sentinel 2 Acquisition Plan",from,"to",to)
+lj4<-lj3[which(dates>(Sys.Date()-7)),]
 
-ggplot()+
+
+
+
+
+fileout <- paste0(sentineldir,"AcquisitionPlan_",from,"_to_",to,"_LAC")
+ggtitle <- paste("Sentinel 2 Acquisition Plan",from,"to",to,"- Large Alpine Convention")
+
+g1<-ggplot()+
   geom_sf(data=outline)+
-  geom_sf(data=lj3,aes(fill=Satellite))+
+  geom_sf(data=lj4,aes(fill=Satellite))+
   facet_wrap(~ObservationTimeStart,ncol=7)+
   theme(panel.grid.major.x = element_line(color = "grey", linetype = 2))+
   ggtitle(ggtitle)
 
-ggsave(paste0(fileout,".png"), plot = last_plot(),device="png",width=14,height=10)
+ggsave(g1,filename=paste0(fileout,".png"),device="png",width=14,height=10)
 
 tilefreq<-table(lj2$Tile)
 ljtile<-lj3 %>% 
