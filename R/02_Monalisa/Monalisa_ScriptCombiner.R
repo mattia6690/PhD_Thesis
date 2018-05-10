@@ -5,7 +5,7 @@
 #* Data Import ----
 source("R/BaseFunctions.R")
 
-ndvidir<-paste0(MonalisaDir,"01_Data/2017/")
+ndvidir<-paste0(MonalisaDir,"01_Data/Monalisa/")
 
 lf<-list.files(ndvidir,full.names = T)
 lf_short<-list.files(ndvidir,full.names = F)
