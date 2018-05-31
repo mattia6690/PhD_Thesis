@@ -1,5 +1,8 @@
 
 ### Create fishnet within polygon ###
+library("raster")
+library("sp")
+library("rgeos")
 
 # Load the Raster
 ras_10<-raster(paste0(SAO_Vegetationdir,"/ResampleSNAP10m_Export/T32TPS/S2A_USER_MSI_L2A_10m_20150704_N02.04_s2cV2.3_T32TPS.tif"))
@@ -23,9 +26,7 @@ for(i in 1:length(oi)){
   poly20<-rasterToPolygons(cr2)
   poly20<-spTransform(poly20,CRS("+proj=longlat +datum=WGS84"))
   
-  
   # Writing
-  
   writeOGR(poly10, dsn=paste0("Sentinel2_NDVI_",nm,"_poly10.kml"), layer="10m NDVI", driver="KML")
   writeOGR(poly10, dsn=getwd(),layer=paste0("Sentinel2_NDVI_",nm,"_poly10.shp"), driver="ESRI Shapefile")
   writeOGR(poly20, dsn=paste0("Sentinel2_NDVI_",nm,"_poly20.kml"), layer="20m NDVI", driver="KML")
