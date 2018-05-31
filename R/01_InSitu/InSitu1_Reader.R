@@ -151,6 +151,8 @@ for(i in 1:length(lf_full)){
     add_column(Nr=seq(1,nrow(.),1),.before=TRUE) %>% 
     gather(c(2:ncol(.)),key="IDs",value="File")
   
+  gps<- itab %>% filter(Type=="Location") %>% gather(c(3:ncol(.)),key="IDs",value="File") %>% mutate(IDs=str_c(IDs,"_1")) %>% .[c(3,1,2,4)]
+    
   
   OP1<-paste(files$IDs,"1",sep="_")
   uniqueID<-unique(OP1)
@@ -160,7 +162,13 @@ for(i in 1:length(lf_full)){
   OP3<-lapply(namesBIO, function(x) str_split(x,"\\("))
   OP3<-lapply(OP3$Name, `[[`, 1) %>% unlist %>% str_replace(.," ","")
   
-  bioMetrics1<-cbind(date,foi,scale1,scale2,OP1,OP2,OP3,files$File)
+  bioMetricsbio<-cbind(date,foi,scale1,scale2,OP1,OP2,OP3,files$File)
+  colnames(bioMetricsbio)<-names
+  bioMetricsgps<-cbind(date,foi,scale1,scale2,gps) %>% distinct
+  colnames(bioMetricsgps)<-names
+  
+  bioMetrics1<-rbind(bioMetricsbio,bioMetricsgps)
+  
   colnames(bioMetrics1)<-names
   
   OP2<-"Laboratory"
@@ -208,7 +216,7 @@ for(i in 1:length(lf_full)){
   OP3<-"Percent"
   
   swcMetricsBind<-cbind(date,foi,scale1,scale2,OP1,OP2,OP3,files$File)
-  names(swcMetricsBind)<-names
+  colnames(swcMetricsBind)<-names
   
   #* 3.6 Combine and Save ----
   mat<-rbind(hyperMetricsBind,laiMetricsBind,bioMetricsBind,swcMetricsBind)
