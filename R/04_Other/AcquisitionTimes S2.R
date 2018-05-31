@@ -11,6 +11,7 @@ library(tibble)
 library(Rcpp)
 #devtools::install_github("tidyverse/ggplot2")   # You need the newest possible ggplot version (>2.2.1) with geom_sf() function
 library(ggplot2)
+library(plotly)
 
 tempdir<-"C:/Users/MRossi/Documents/08_Temp/"
 outname<-paste0(tempdir,"S2_Tiles_lac.shp")
@@ -107,8 +108,11 @@ to<-dates %>% max
 
 lj4<-lj3[which(dates>(Sys.Date()-7)),]
 
+satellites2<-lj4 %>% as.data.frame() %>% 
+  select(Satellite) %>% lapply(.,function(i) str_split(i,"-",simplify = T)) %>% 
+  as.data.frame() %>% .[,2]
 
-
+lj4<-lj4 %>% mutate(Sentinel=satellites2)
 
 
 fileout <- paste0(sentineldir,"AcquisitionPlan_",from,"_to_",to,"_LAC")
@@ -116,7 +120,7 @@ ggtitle <- paste("Sentinel 2 Acquisition Plan",from,"to",to,"- Large Alpine Conv
 
 g1<-ggplot()+
   geom_sf(data=outline)+
-  geom_sf(data=lj4,aes(fill=Satellite))+
+  geom_sf(data=lj4,aes(fill=Sentinel))+
   facet_wrap(~ObservationTimeStart,ncol=7)+
   theme(panel.grid.major.x = element_line(color = "grey", linetype = 2))+
   ggtitle(ggtitle)
@@ -135,3 +139,29 @@ table<-ljtile %>%
 
 write.csv(table,paste0(fileout,".csv"))
 saveRDS(table,paste0(fileout,"rds"))
+
+freq<-lj4 %>% as.data.frame %>% select(Tile) %>% table %>% as.data.frame() %>% setNames(c("Tile","Frequency"))
+
+lj5<-left_join(lj4,freq)
+lj5$Date<-lj5$ObservationTimeStart %>% as_date
+
+g2<-ggplot()+
+  geom_sf(data=outline)+
+  geom_sf(data=lj5,aes(fill=Frequency,text=paste("<b> Sentinel",Sentinel,"</b> flight on",Date)))
+
+
+# inter3<-inter2 %>% 
+#   mutate(
+#     lon = map_dbl(geometry, ~st_centroid(.x)[[1]]),
+#     lat = map_dbl(geometry, ~st_centroid(.x)[[2]])
+#   ) 
+# 
+# sti<-readOGR("C:/Users/MRossi/Documents/03_Data/Shapes/00_General","SouthTyrol") %>% as(.,"sf")
+# ggplot(inter3) + 
+#   geom_sf() +
+#   geom_sf(data=sti,color="red")+
+#   geom_text(aes(label = Tile, x = lon, y = lat), size = 5) +
+#   ggtitle("Sentinel 2 Tiles in the Large Alpine Convention")+
+#   scale_fill_distiller(palette = "Spectral")
+
+
