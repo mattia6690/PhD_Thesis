@@ -75,8 +75,6 @@ saveRDS(ndvi.tab,file = paste0(MetricsDir,"NDVI_Table_vimes1500_2017.rds"))
 
 
 # 3. Plots of Metrics ----
-
-
 ggplot(phenodat,aes(Date,NDVI2))+ geom_point()
 
 
@@ -455,7 +453,7 @@ ndays<-30
 sensorsall<-data$Sensor %>% unique
 
 mvallist<-list()
-for(s in 1:length(sensors)){
+for(s in 1:length(sensorsall)){
   
   sensor<-sensorsall[s]
   
@@ -503,9 +501,9 @@ for(s in 1:length(sensors)){
         if(nrow(mnlssub2)>1){
         lm2<-lm(Value~Iter,mnlssub2)
         slopelm2<-lm2$coefficients[2]
-        } else { slopelm1=NA }
+        } else { slopelm2=NA }
         
-        if(!is.na(coeflm1) & !is.na(coeflm2)){
+        if(!is.na(slopelm1) & !is.na(slopelm2)){
           
           p1<-mean(diff(predict(lm1)))
           p2<-mean(diff(predict(lm2)))
