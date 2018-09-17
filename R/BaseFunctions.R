@@ -7,7 +7,6 @@ loadandinstall("plyr")
 loadandinstall("dplyr")
 loadandinstall("tidyr")
 loadandinstall("purrr")
-library("ggplot2")
 loadandinstall("magrittr")
 loadandinstall("readr")
 loadandinstall("rgeos")
@@ -32,6 +31,9 @@ loadandinstall("modelr")
 loadandinstall("DMwR")
 loadandinstall("hms")
 loadandinstall("tibble")
+loadandinstall("Hmisc")
+loadandinstall("ggplot2")
+loadandinstall("sf")
 
 # 2. Define Directories ----
 
@@ -41,9 +43,9 @@ DataDir<-"C:/Users/MRossi/Documents/03_Data/"
 RemsenDir<- paste0(DataDir,"01_RemSen/")
   sentineldir<-paste0(RemsenDir,"Sentinel/")
 PhenocamDir<- paste0(DataDir,"02_PhenoCam/")
-InSitu_dir<-paste0(DataDir,"/03_InSitu/")
+InSitu_dir<-paste0(DataDir,"03_InSitu/")
   dirlai<-paste0(InSitu_dir,"04_LAI/")
-  dirhyp<-paste0(InSitu_dir,"05_HyperSpec/")
+  dirhyp<-paste0(InSitu_dir,"05_HyperSpec/2017/")
   dirgps<-paste0(InSitu_dir,"06_GPS/")
   dirfield<-paste0(InSitu_dir,"07_FieldCampaign17/")
   dirstat<-paste0(InSitu_dir,"07_FieldCampaign17/00_Raw/")
@@ -58,9 +60,13 @@ WorkspaceDir<-"Y:/Workspaces/RosM/"
 
 #* 2.3 Directory3: SAO Server ----
 SAO_Vegetationdir <-"U:/SAO/SENTINEL-2/SentinelVegetationProducts/"
-SAO_NDVIdir<- paste0(SAO_Vegetationdir,"S2_NDVIMaps")
+SAO_NDVIdir<- paste0(SAO_Vegetationdir,"S2_NDVIMaps_NoLC_noLAEA")
 SAO_LAIdir<-  paste0(SAO_Vegetationdir,"SentinelLAI")
 SAO_Metadir<- paste0(SAO_Vegetationdir,"Metadata_xmls")
+
+
+# 2.4. Directory Monalisa Phenocams
+MNLS_Phenodir<- "M:/ProjectData/MONALISA/Pillar2/PhenoCam/PhenoCam/"
 
 
 # 3. Global Input ----
@@ -97,10 +103,10 @@ stringinlist<-function(string1,string2){
 }
 
 # Write the first Cap as capita
-simpleCap <- function(x) {
+simpleCap <- function(x,first=T) {
   s <- strsplit(x, " ")[[1]]
-  paste(toupper(substring(s, 1, 1)), substring(s, 2),
-        sep = "", collapse = " ")
+  if(first==F) paste(toupper(substring(s, 1, 1)), tolower(substring(s, 2)),sep = "", collapse = " ")
+  if(first==T) paste(toupper(substring(s, 1, 1)), substring(s, 2),sep = "", collapse = " ")
 }
 
 # Factors to numeric conversion
@@ -119,7 +125,6 @@ Insitu.init<-function(table,tableColumn,pattern,names){
   table2  <-.remheader(table)
   tab<-table2[table2$Type==pattern,]
   tab<-tab[,which(grepl("ID",colnames(tab)))]
-  
   
   # Create the Matrix
   field_mat1<-matrix(ncol=length(names),
@@ -141,7 +146,7 @@ Insitu.init<-function(table,tableColumn,pattern,names){
 .getheader<-function(table){table %>% slice(.,head1) %>% return(.)}
 
 #' Remove the Header from the In-Situ Table I created
-.remheader<-function(table){table %>% slice(5:nrow(.)) %>% setNames(.,.[1,]) %>% slice(2:nrow(.)) %>% return(.)}
+.remheader<-function(table){table %>% .[5:nrow(.),] %>% setNames(.,.[1,]) %>% .[2:nrow(.),] %>% return(.)}
 
 #' Calculate the Indics from the Hyperspectral Datasets
 hypindices<-function(input,wavel1,wavel2,stat="NDVI"){
@@ -184,7 +189,6 @@ S2_avail<-function(lst,nms){
     str<-str_replace(i,".tif","")
     str<-str_replace(str,"_masked","")
     str<-str_split(str,pattern="_")[[1]]
-    str[1]<-str[1] %>% str_split(.,"/") %>% unlist %>% .[2]
     
     df<-rbind(df,str)
     
@@ -231,21 +235,29 @@ lp<- function(r,main=""){
 
 # Crop Raster by multiple Shapes
 cutrasters<-function(r1,shps){
-  
-  r1ext<-extent(r1)
+
   rasters<-list()
-  for(j in 1:length(shps)){
+  
+  for(j in 1:nrow(shps)){
     
-    if(!is.null(raster::intersect(r1ext,extent(shps[j,])))){
+    checker<- st_within(shps[j,],st_as_sfc(st_bbox(r1))) %>% unlist
+    name   <- shps$Station[j] %>% as.character %>% simpleCap
+    
+    if(length(checker)==1){
       
-      cr<-crop(r1,shps[j,])
+      cropper<-as(extent(shps[j,]),"SpatialPolygons")
+      cr<-raster::crop(r1,cropper)
       rasters[[j]]<-cr
-      names(rasters)[[j]]<-shps@data$Name[j] %>% as.character
+      names(rasters)[[j]]<-name
+      
+    }else{
+      
+      rasters[[j]]<-NA
+      names(rasters)[[j]]<-name
       
     }
   }
   return(rasters)
-  
 }
 
 # Mask  one or multiple values with a list of rasters
@@ -371,3 +383,38 @@ addNear<-function(oldtab,newtab,col="Sentinel"){
   newtab[[col]][wh]<-values
   return(newtab)
 }
+
+# Get the LM by two strings for columns
+mod_fun<-function(df,y1,y2,glance=T) {
+  
+  a<-df %>% select(y1) %>% unique
+  b<-df %>% select(y2) %>% unique
+  
+  if(nrow(a)>1 & nrow(b)>1) {
+    
+    fit<-lm(get(y2) ~ get(y1), data=df, na.action = na.omit)
+    if(glance==T) fit<-glance(fit)
+    return(fit)
+    
+  }else{NA}
+  
+}
+
+# Bind all columns of data frame df together and rename them
+allbind<-function(df,y1,y2) cbind(select(df,"Date"),select(df,y1),select(df,y2)) %>% setNames(c("Date","X","Y"))
+
+
+
+ccf_fun<-function(df,y1,y2) {
+  
+  a<-df %>% select(c(y1,y2)) %>% na.omit
+  if(nrow(a)>0) {
+    c<-Ccf(a[,1],a[,2],plot=F,lag.max = 20)
+    d<-cbind.data.frame(c[[4]],c[[1]])
+    names(d)<-c("Lags","R")
+    return(d)
+  }
+  
+}
+
+
