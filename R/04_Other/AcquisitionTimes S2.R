@@ -11,6 +11,7 @@ library(tibble)
 library(Rcpp)
 #devtools::install_github("tidyverse/ggplot2")   # You need the newest possible ggplot version (>2.2.1) with geom_sf() function
 library(ggplot2)
+library(rlang)
 library(plotly)
 
 tempdir<-"C:/Users/MRossi/Documents/08_Temp/"
@@ -118,14 +119,18 @@ lj4<-lj4 %>% mutate(Sentinel=satellites2)
 fileout <- paste0(sentineldir,"AcquisitionPlan_",from,"_to_",to,"_LAC")
 ggtitle <- paste("Sentinel 2 Acquisition Plan",from,"to",to,"- Large Alpine Convention")
 
+sti<-readOGR("C:/Users/MRossi/Documents/03_Data/Shapes/00_General","SouthTyrol") %>% as(.,"sf")
+
 g1<-ggplot()+
   geom_sf(data=outline)+
   geom_sf(data=lj4,aes(fill=Sentinel))+
-  facet_wrap(~ObservationTimeStart,ncol=7)+
+  geom_sf(data=sti,color="black",fill=NA)+
+  facet_wrap(~ObservationTimeStart,ncol=6)+
   theme(panel.grid.major.x = element_line(color = "grey", linetype = 2))+
+  scale_fill_manual(values=c("darkgrey", "lightgrey"))+
   ggtitle(ggtitle)
 
-ggsave(g1,filename=paste0(fileout,".png"),device="png",width=14,height=10)
+ggsave(g1,filename=paste0(fileout,".png"), width = 297, height = 210, units = "mm")
 
 tilefreq<-table(lj2$Tile)
 ljtile<-lj3 %>% 
@@ -135,7 +140,7 @@ ljtile<-lj3 %>%
 table<-ljtile %>% 
   as.data.frame() %>% 
   select(-geometry) %>% 
-  separate(.,ObservationTimeStart,c("Date","Time"),sep="T")
+  tidyr::separate(.,ObservationTimeStart,c("Date","Time"),sep="T")
 
 write.csv(table,paste0(fileout,".csv"))
 saveRDS(table,paste0(fileout,"rds"))
