@@ -1,26 +1,27 @@
-###
-# 1. Initialization ----
-###
+# Analyzing EURAC Decagon Data
+# Mattia Rossi
+# Combination and Filtering
 
-#* Data Import ----
+# Environment -------------------------------
 source("R/BaseFunctions.R")
-
 ndvidir<-paste0(MonalisaDir,"01_Data/Monalisa/")
 
+# Requirements ------------------------------
 lf<-list.files(ndvidir,full.names = T)
 lf_short<-list.files(ndvidir,full.names = F)
 
-writeCSV=T
-savePlot=T
+timerange<-c("10:30:00","15:00:00")
+daterange<-c("2017-03-01","2017-11-01")
+dir<-paste0(Monalisa17Dir,"02_Tables/")
+dircheckup(dir)
 
-
+# Generate Table ----------------------------------------------------------
 stations<-str_split(lf_short,"_") %>% 
   map(function(i) i[1]) %>% 
   unlist
-
 names<-c("Date","Station","Scale1","Scale2","OP1","OP2","OP3","Value")
 
-#* Create Tidy Table ----
+# bit oldschool
 lf.t1<-lf.t2<-list()
 for (i in 1:length(lf)){
   
@@ -37,7 +38,7 @@ for (i in 1:length(lf)){
   
 }
 
-mnls.tidy <-lf.t2 %>% 
+mnls.tidy.raw <-lf.t2 %>% 
   do.call(rbind.data.frame,.) %>% 
   as.tibble %>%
   mutate(Date=as.POSIXct(Date,format="%Y-%m-%d %H:%M")) %>% 
@@ -47,139 +48,102 @@ mnls.tidy <-lf.t2 %>%
   mutate(Value=as.numeric(Value)) %>% 
   filter(!is.nan(Value))
 
-saveRDS(mnls.tidy,paste0(MonalisaDir,"02_Tables/Monalisa_NDVI_raw.rds"))
-if(writeCSV==T) write.csv(mnls.tidy,paste0(MonalisaDir,"02_Tables/Monalisa_NDVI_raw.csv"))
+saveRDS(mnls.tidy.raw,paste0(MonalisaDir,"02_Tables/Monalisa_NDVI_raw.rds"))
+if(writeCSV==T) write.csv(mnls.tidy.raw,paste0(MonalisaDir,"02_Tables/Monalisa_NDVI_raw.csv"))
 
-# 2. Filter ----
 
-#* INPUT ----
+# Filter Time -------------------------------------------------------------
+mnls.raw.time<-mnls.tidy.raw %>% 
+  filter(Time>=as.hms(timerange[1]) & Time<=as.hms(timerange[2])) %>% 
+  filter(Date>=as.Date(daterange[1]) & Date<=as.Date(daterange[2]))
 
-timerange<-c("10:30:00","15:00:00")
-station<-"vimes1500"
-dir<-paste0(MonalisaDir,"02_Tables/")
+mnls.raw.group<-mnls.raw.time %>% 
+  group_by(Date,Station,Scale1,Scale2,OP1,OP2,OP3) %>% nest
 
-start<-"2017-01-01" %>% as_date
-end  <-"2017-12-31" %>% as_date
-movingWinL<-7
+# Filter Date -------------------------------------------------------------
+mnls.outlier.date<- mnls.raw.group %>% 
+  mutate(data=map(data,function(i){
+    
+    gDens <-.getDensityLimits(i$Value)
+    lof   <- i %>% select(Value) %>% lofactor(., k=3)
+    
+    dat1   <- i %>% 
+      add_column(.,Lower=gDens[1]) %>% 
+      add_column(.,Upper=gDens[4]) %>% 
+      add_column(.,LOF=lof)
+    
+    return(cbind(i,dat1))
+    
+  }))
 
-#* Time Filter ----
-
-time<-as.hms(timerange)
-mnls.filter1<-mnls.tidy %>% 
-  filter(Time>=time[1]) %>% 
-  filter(Time<=time[2])
-
-saveRDS(mnls.filter1,paste0(dir,"Monalisa_NDVI_filter1.rds"))
-if(writeCSV==T) write.csv(mnls.filter1,paste0(dir,"Monalisa_NDVI_filter1.csv"))
-
-#* Outlier Filter ----
-temp<-mnls.filter1 %>% 
-  group_by(Date,Station,Scale1,Scale2,OP1,OP2,OP3) %>% 
-  nest
-
-temp2<- temp %>% mutate(data=map(data,function(i){
-  
-  gDens <-.getDensityLimits(i$Value)
-  lof   <- i %>% select(Value) %>% lofactor(., k=3)
-
-  dat1   <- i %>% 
-    add_column(.,Lower=gDens[1]) %>% 
-    add_column(.,Upper=gDens[4]) %>% 
-    add_column(.,LOF=lof)
-  
-  return(cbind(i,dat1))
-
-}))
-
-mnls.filter2<-temp2 %>% 
-  unnest %>% 
+mnls.outlier.date1<-mnls.outlier.date %>% unnest %>% 
   filter(Value>Lower) %>% 
   filter(Value<Upper) %>% 
-  filter(LOF<2)
+  filter(LOF<1.5)
 
-saveRDS(mnls.filter2,paste0(dir,"Monalisa_NDVI_filter2.rds"))
-if(writeCSV==T) write.csv(mnls.filter2,paste0(dir,"Monalisa_NDVI_filter2.csv"))
+g.f1<-ggplot(mnls.outlier.date1,aes(Date,Value))+geom_point()+facet_wrap(.~Station)
 
-#* Max Value Filter ----
+# Filter Moving Window -------------------------------------------------------------
+print("Moving Window Filtering")
 
-temp3<-filter.data2 %>% 
+t.win<-4
+input<-mnls.outlier.date1
+stats<- input$Station %>% unique %>% as.character %>% as.tibble %>% setNames("station")
+dates<- input$Date 
+
+# Create Moving Window Timespans
+mw.combi<-stats %>% 
+  mutate(dates=map(station,function(x,d=dates,w=t.win){
+    
+    seq1<- seq(min(d),max(d)-w,1) %>% as.tibble
+    seq2<- seq(min(d)+w,max(d),1) %>% as.tibble
+    bc<-bind_cols(seq1,seq2) %>% setNames(c("start","end"))
+    
+  })) %>% unnest
+
+# Filter Station and Dates per Moving Window Iteration
+mw.filter<-mw.combi %>% 
+  mutate(data=pmap(list(station,start,end),function(x,y,z,i=input){
+
+    i %>% filter(Station==x) %>% filter(Date>=y) %>% filter(Date<=z) %>% return()
+
+  }))
+
+# Filter for Outliers in Density
+mw.stat<-mw.filter %>% mutate(error=map(data,function(dat) {
+  
+  if(nrow(dat) < 3) return(rep(1,nrow(dat)))
+  sel<-dat %>% select(Value) %>% unlist 
+  if(all(is.nan(sel))) return(rep(1,nrow(dat)))
+  
+  limits<-.getDensityLimits(sel,method="max")
+  
+  err<-(sel<limits[1] | sel>limits[3] | sel>limits[4])*1
+  if(length(err)==0) err<-rep(0,nrow(dat))
+  return(err)
+  
+}))
+
+# Unnest the Data
+mw.comb1<-mw.stat %>% 
+  mutate(error.mw=map2(data,error,function(x,y) bind_cols(select(x,Date),as.tibble(y)))) %>% 
+  select(data,error.mw) %>% 
+  unnest
+
+# Calculate the Sum of Iterations classified as outlier
+mw.comb2<-mw.comb1 %>% 
+  group_by(Date,Time,Station,Scale1,Scale2,OP1,OP2,OP3) %>% 
+  dplyr::summarise(error.mw=sum(value)) %>% 
+  ungroup
+
+# Apply the Treshold when an observation is considered an outlier
+error.mw<-left_join(input,mw.comb2) %>% filter(error.mw==4)
+g.mw1<-ggplot(error.mw,aes(Date,Value))+geom_point()+facet_wrap(.~Station)
+
+# 90 Percentile NDVI ------------------------------------------------------
+mnls.percentile<- error.mw %>% 
   group_by(Date,Station,Scale1,Scale2,OP1,OP2,OP3) %>% 
-  nest %>% 
-  mutate(filtered = map(data, ~ filter(., Value==max(Value))))
+  dplyr::summarise(Value=quantile(Value,.9))
 
-mnls.filter3<-temp3 %>% select(-data) %>% unnest 
-
-saveRDS(mnls.filter3,paste0(dir,"Monalisa_NDVI_filter3.rds"))
-if(writeCSV==T) write.csv(mnls.filter3,paste0(dir,"Monalisa_NDVI_filter3.csv"))
-
-#* Moving Window Filter ----
-
-temp.station<-mnls.filter3 %>% filter(Station==station)
-date.range<-seq(start,end,1)
-tbl<-list()
-
-for(i in 1:length(date.range)){
-  
-  date1<-date.range[i]
-  date2<-seq(date1,date1+movingWinL-1,1)
-  
-  if(length(which(is.element(date2,temp.station$Date)==T))>=2){
-    
-    summary4<- temp.station %>% 
-      filter(is.element(Date,date2)) %>% 
-      group_by(Date,Station) %>% nest %>% 
-      mutate(new=map(data,function(i) i[1,])) %>% 
-      select(-data) %>% 
-      unnest
-    
-    if(nrow(summary4)>2){
-      mp<-map(2:5,function(i) lofactor(summary4$Value, k=i)) %>% do.call(cbind,.) %>% rowMeans()
-      tbl[[i]]<-as.tibble(summary4$Date) %>% add_column(LOF=mp)
-      
-    }
-  }
-}
-
-mp2<-map(tbl, ~ filter(.,LOF>2)) 
-wh<- do.call(rbind.data.frame,mp2) %>% select(value) %>% table %>% {which(.>3)} %>% names
-
-filter.data3<-summary3 %>% filter(!is.element(Date,as_date(wh)))
-
-
-
-
-gall<-ggplot(filter.data3,aes(Date,Value))+geom_point()+geom_line()+
-  ggtitle(paste0("Decagon NDVI of 2017 Filtered 3 - MovingWindow"))+
-  ylim(c(-1,1))
-
-saveRDS(filter.data3,paste0(MetricsDir,"Monalisa_NDVI_filtered_MovingWindow.rds"))
-ggsave(gall,filename = paste0(Monalisa17Dir,"FilterComplete.png"),device = "png",width = 7,height=7)
-  
-# 3. Plotting ----
-
-#* MinMaxMeanPlot ----
-summary<-filter.data2 %>% 
-  group_by(Date,Station) %>% 
-  dplyr::summarize(maxNDVI=max(Value,na.rm=T),
-                   minNDVI=min(Value,na.rm=T),
-                   meanNDVI=mean(Value,na.rm=T))
-
-summary2<-melt(summary,id.vars = c("Date","Station"),value.name = "Value") %>% as.tibble()
-summary2$Date<-as_date(summary2$Date)
-
-g6<-ggplot(summary2,aes(x=Date,y=value,color=variable))+
-  geom_point()+
-  ggtitle(paste0("Decagon NDVI of 2017 Filtered - MinMeanMax"))+
-  ylim(c(-1,1))+
-  facet_grid(Station~.)
-ggsave(g6,filename = paste0(Monalisa17Dir,"FilterCompleteMinMaxMean.png"),device = "png",width = 7,height=11)
-
-#* FilterPlot ----
-summary3<-summary2 %>% filter(variable=="maxNDVI")
-g7<-ggplot(summary3,aes(x=Date,y=value))+
-  geom_point()+
-  ggtitle(paste0("DECAGON NDVI from ",f," to ",t))+
-  ylim(c(-1,1))+
-  facet_grid(Station~.)
-
-ggsave(g7,filename = paste0(Monalisa17Dir,"FilterComplete.png"),device = "png",width = 7,height=11)
+g.f2<-ggplot(mnls.percentile,aes(Date,Value))+geom_point()+facet_wrap(.~Station)
+saveRDS(mnls.percentile,paste0(Monalisa17Dir,"Monalisa_NDVI_filtered_MovingWindow_100818.rds"))
