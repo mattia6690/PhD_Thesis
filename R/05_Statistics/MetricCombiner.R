@@ -166,8 +166,8 @@ sensor<-"SRS"
 ManageDiff<-Manage[-c(13,14),]
 igarssset<-ndvi.tab %>% select(Date,eval(sensor)) %>% mutate(Value=SRS)
 
-g1<-ggplot(igarssset,aes(Date,Value))+theme_light()+ylab("NDVI")+
-  geom_point(aes(color="NDVI"),shape=0)+
+g1<-ggplot(igarssset,aes(Date,Value))+ylab("NDVI")+
+  geom_point(aes(color="NDVI"),shape=1)+
   geom_vline(data=ManageDiff,aes(xintercept=Date,linetype=Value))+
   scale_linetype_manual("",values=c("Fertilization"="dotted",
                                     "Harvest"="solid",
@@ -175,6 +175,7 @@ g1<-ggplot(igarssset,aes(Date,Value))+theme_light()+ylab("NDVI")+
                                     "Livestock"="longdash"))+
   scale_color_manual("",values = c("NDVI"="darkgreen"))+
   scale_x_date(limits=c(as.Date("2017-03-15"),as.Date("2017-10-31")),date_breaks="1 month")+
+  ggtitle("Management Events on the Vimes1500 Site for 2017")+
   ylim(0,1)+
   theme(legend.position="bottom",legend.text=element_text(size=12),axis.text=element_text(size=12))
 
@@ -183,8 +184,8 @@ g1<- ggplot(igarssset,aes(Date,Value))+theme_light()+ylab("NDVI")+
   facet_wrap(~.ManageDiff)
 
   
-ggsave(g1,filename = paste0(dir,"NDVI_",sensor,"_IGARSSManagement_",station,".png"),
-       device="png",width=9,height=7)
+ggsave(g1,filename = paste0(dir,"NDVI_",sensor,"_IGARSSManagement2_",station,".png"),
+       device="png",width=12,height=7)
   
 #* 3.3. Scale Correlations ----
 
