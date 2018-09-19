@@ -4,18 +4,44 @@
 source("R/BaseFunctions.R")
 #source("R/RemSen/S2_ExtractMetrics2_Iteration.R")
 writeCSV=T
-suffix<-"151217"
-ml<-readRDS(paste0(MetricsDir,"Sentinel2_metrics_",suffix,".rds"))
-ml$Value<-ml$Value %>% as.numeric()
-ml$Date<-ml$Date %>% as.Date(.,format="%Y%m%d")
+suffix<-"050718"
+
+ml1<-readRDS(paste0(MetricsDir,"Sentinel2_metrics_",suffix,".rds")) %>% add_column(Tdiff=0)
+ml2<-readRDS(paste0(MetricsDir,"Sentinel2_metrics_points_",suffix,".rds"))
+ml<-rbind(ml1,ml2) %>% arrange(Date,Station) %>% add_column(Date2={.$Date+.$Tdiff},.after="Date")
+
+ml<-readRDS(paste0(Workspacedir,"07_Products/Metrics_S2_Station_Selection_",suffix,".rds"))
+
+
+ml.mask<-ml %>% filter(OP2=="Mask") %>% filter(OP3=="MaskedPercent") 
+ml.mask.good<-ml.mask %>% group_by(Station,Date.Sen) %>% dplyr::summarize(mean=100-mean(Value,na.rm=T)) %>% filter(mean>90)
+
+
+g1<-ggplot(ml.mask,aes(Date.Sen,mean))+geom_bar(stat="identity")+facet_wrap(.~Station)
+
+
+ml.ndvi<-ml %>% filter(OP2=="NDVI") %>% filter(!is.na(Value))
+ml.ndvi.Nosd<- ml.ndvi %>% filter(OP3!="Sd")
+ml.ndvi.Date<- ml.ndvi.Nosd %>% filter(!is.na(Date)) %>% mutate(Tdiff=abs(Date-Date.Sen)) %>% 
+  group_by(Station,Date,OP1) %>% nest
+
+x<-ml.ndvi.Date$data[[1]]
+
+ml.ndvi.min<-ml.ndvi.Date %>% 
+  mutate(MinDiff=map(data,function(x){return(x %>% arrange(Tdiff) %>% slice(1))})) %>% 
+  select(-data) %>% 
+  unnest
+
+
+g1<-ggplot(ml.ndvi.min,aes(Date.Sen,Value))+geom_point()+facet_wrap(.~Station)
 
 # Digit the Treshold for Masking & The Local outlier Function
-tres.mask<-50
+tres.mask<-25
 tres.lof<-2
 
 # 2. Filter the Images ----
 # Unique Inputs
-ml.unq<-ml$Station %>% unique %>% .[-1] # Tile Deleted
+ml.unq<-ml$Station %>% unique
 dat.unq<-ml$Date %>% unique
 ml_out1<-list()
 ml_out2<-list()
@@ -24,11 +50,34 @@ for(i in 1:length(ml.unq)){
   
   #* 2.1. Masked Data by Station ----
   stat<-ml.unq[i]
-  ml2<- ml %>% filter(Station==stat)
-  ml3<- ml2 %>% filter(OP3=="MaskedPercent") %>% filter(OP1=="Buffer"|OP1=="Shapefile"|OP1=="Point")
+  ml1.stat<- ml %>% filter(Station==stat)
+  ml2.mask<- ml1.stat %>% filter(OP3=="MaskedPercent")
+  ml3.sele<-ml2.mask %>% filter(Value<tres.mask) %>% select(Date,Station)
+  ml4.filt<-ml1.stat %>% slice({which(!is.element(Date2,ml3.sele$Date))})
+  ml5.ndvi.all<- ml4.filt %>% filter(OP2=="NDVI")
+  ml5.ndvi.val<- ml5.ndvi.all %>% filter(OP3!="Sd")
   
-  ml2.ndvi<- ml2 %>% filter(OP1=="Shapefile",OP2=="NDVI",OP3=="Mean")
+  test<-ml5.ndvi.val %>% group_by(Date) %>% nest
   
+  t<-test %>% mutate(cluster=map(data,function(k){
+    
+    val<-select(k,Value) %>% unlist
+    if(length(val)>2){ 
+      
+      km<-kmeans(val,centers = 2)$cluster 
+      
+    } else { km<-rep(2,length(val))}
+    return(km)
+    
+  })) %>% unnest
+  
+  t1<- t %>% filter(cluster==2)
+  ggplot(t1,aes(Date2,Value,group=Date2))+geom_boxplot()
+  
+  
+  t2<-t1 %>% select(-cluster) %>% group_by(Date,Date2,Station,Scale1,Scale2,OP1,OP2,OP3) %>% slice(which.min(Tdiff))
+  ggplot(t2,aes(Date2,Value,group=Date2))+geom_boxplot()
+  g2<-ggplot(t2,aes(Date2,Value,color=OP1))+geom_point()+geom_line()
   
   tileml<-ml %>% filter(Station=="Tile") %>% filter(OP3=="MaskedPercent")
   ml_out1[[i]]<-rbind(tileml,ml3)
@@ -38,8 +87,6 @@ for(i in 1:length(ml.unq)){
   wh<-which(wh>=1) %>% as.data.frame() %>% rownames()
   wh<-which(is.element(ml2$Date,as.Date(wh)))
   ml4<-ml2[-wh,]
-  
-  
   
   #* 2.3. Delete by Stdev ----
   ml5<-ml4 %>% 
@@ -60,7 +107,6 @@ for(i in 1:length(ml.unq)){
   #* 2.4. Filtered List ----
   ml6<-ml5 %>% filter(OP2=="NDVI") %>% filter(OP3=="Absolute"|OP3=="Mean") %>% na.omit
   ml_out2[[i]]<-ml6
-  
   
 }
 
