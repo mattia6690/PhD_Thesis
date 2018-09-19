@@ -9,11 +9,15 @@
 source("R/BaseFunctions.R")
 library("ggmap")
 library("sf")
+library("tibble")
+library("lubridate")
+
 
 ### 01. Plots 2 GPS ####
 options(digits=10)
 
-insitu_raw<-readRDS(paste0(MetricsDir,"CombinedInSituMetricsSOS.rds"))
+dir<-paste0(dirfield,"04_Combined/")
+insitu_raw<-read_rds(paste0(dir,"InSituMetrics1_tidy_combined.rds"))
 
 gps.bio<-insitu_raw %>% 
   filter(Scale2=="Biomass") %>% 
@@ -51,9 +55,7 @@ for(i in stats){
   
   gps3<- gps2 %>% 
     mutate(Date=as.Date(Date,format="%d%m%y")) %>% 
-    mutate(DOY=yday(Date)) %>% 
-    separate(.,OP1,sep="_",into = c("OP1","Hi2")) %>% 
-    select(-Hi2)
+    mutate(DOY=yday(Date)) 
   
   g1<-ggplot(gps3)+geom_sf(aes(color=OP1,pch=Scale2))+facet_wrap(~DOY)+
     theme(axis.text.x = element_text(angle = 90, hjust = 1))+
@@ -64,7 +66,7 @@ for(i in stats){
   
   gpsB1<-gps3 %>% 
     group_by(Date,Station,Scale1,Scale2,OP1,DOY) %>% 
-    nest.sf() %>% 
+    nest() %>% 
     mutate(newcol=map(data,function(j){
       
       box<-j$geometry %>% st_bbox
@@ -73,7 +75,7 @@ for(i in stats){
       
     }))
   
-  gpsB11<-gpsB1 %>% select(-data) %>% unnest %>% as.data.frame() %>% 
+  gpsB11<-gpsB1 %>% dplyr::select(-data) %>% unnest %>% as.data.frame() %>% 
     sf::st_as_sf(coords = c("Lon","Lat")) %>% 
     st_set_crs(4326) 
   
@@ -91,15 +93,19 @@ for(i in stats){
   gglist3[[length(gglist3)+1]]<-g3
   gglist3.n[[length(gglist3.n)+1]]<-paste0(i,"_GPS_LAI_CentreOnly.png")
   
-  noLAI<-gps3 %>% select(Date,Station,Scale1,Scale2,OP1) %>% as.data.frame() %>% select(-geometry) %>% distinct %>% table
+  noLAI<-gps3 %>% 
+    dplyr::select(Date,Station,Scale1,Scale2,OP1) %>% 
+    as.data.frame() %>% 
+    dplyr::select(-geometry) %>% 
+    distinct %>% table
   
   
   # Chose the right Pixel
   
   noLAI<-gps3 %>% 
-    select(Date,Station,Scale1,Scale2,OP1) %>% 
+    dplyr::select(Date,Station,Scale1,Scale2,OP1) %>% 
     as.data.frame() %>% 
-    select(-geometry) %>% 
+    dplyr::select(-geometry) %>% 
     distinct %>% 
     table %>% 
     as.data.frame() %>% 
@@ -107,8 +113,8 @@ for(i in stats){
   
   noLAI2<-noLAI %>% mutate(doBio=map(data,function(j){
     
-    las<- j %>% filter(Scale2=="LAI2200") %>% select(Freq) %>% as.numeric()
-    bas<- j %>% filter(Scale2=="Biomass") %>% select(Freq) %>% as.numeric()
+    las<- j %>% filter(Scale2=="LAI2200") %>% dplyr::select(Freq) %>% as.numeric()
+    bas<- j %>% filter(Scale2=="Biomass") %>% dplyr::select(Freq) %>% as.numeric()
     
     if(las==1) return(0)
     if(las==0 && bas==0) return(0)
@@ -116,7 +122,7 @@ for(i in stats){
     
   }))
   
-  noLAI3<-noLAI2 %>% select(-data) %>% unnest %>% filter(doBio==1) %>% select(-doBio) %>% 
+  noLAI3<-noLAI2 %>% dplyr::select(-data) %>% unnest %>% filter(doBio==1) %>% dplyr::select(-doBio) %>% 
     split(., seq(nrow(.)))
   
   noLAI4<-map(noLAI3,function(x,y=gpsB11){
@@ -140,7 +146,7 @@ for(i in stats){
   gglist4[[length(gglist4)+1]]<-g4
   gglist4.n[[length(gglist4.n)+1]]<-paste0(i,"_GPS_LAI_FilledGPS.png")
   
-  gpsFilledExp<-gpsFilled %>% arrange(Date) %>% select.sf(Date,Station,OP1)
+  gpsFilledExp<-gpsFilled %>% arrange(Date) %>% dplyr::select(Date,Station,OP1)
   file[[i]]<-gpsFilled
   
   
