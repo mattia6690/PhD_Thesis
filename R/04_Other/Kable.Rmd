@@ -1,0 +1,53 @@
+---
+title: "TestDocument"
+output:
+  word_document: default
+  html_document:
+    df_print: paged
+  pdf_document: default
+---
+
+```{r,echo=FALSE, message=FALSE, results='asis',eval=FALSE}
+
+library(xtable)
+options(xtable.floating = FALSE)
+options(xtable.timestamp = "")
+
+
+DataDir<-"C:/Users/MRossi/Documents/03_Data/"
+MetricsDir<- paste0(DataDir,"06_Metrics/")
+pt<-readRDS(file = paste0(MetricsDir,"AllSensorData1608_byPlot.rds"))
+print(xtable(pt),type="html",include.rownames = F)
+
+```
+
+```{r}
+
+library(knitr)
+library(kableExtra)
+library(magrittr)
+library(tidyverse)
+library(magick)
+
+
+DataDir<-"C:/Users/MRossi/Documents/03_Data/"
+MetricsDir<- paste0(DataDir,"06_Metrics/")
+
+suffix<-"200818"
+pt<-readRDS(file = paste0(MetricsDir,"AllSensorData",suffix,"_CorrelationAll.rds"))
+pt1<-pt %>% replace(is.na(.), "")
+kable(pt1,"latex",booktabs=T,align="c",linesep=" ") %>% 
+  kable_styling(latex_options = "scale_down") %>% 
+  collapse_rows(1:2,row_group_label_position = "stack")%>% 
+  add_header_above(c(" ","Sensors"=2," ","Plots"=5),align="c") %>% 
+  kableExtra::kable_as_image(., filename = paste0(MetricsDir,"Correlation_Table_All_byPlot"))
+
+acq<-readRDS(file=paste0(MetricsDir,"AllData_byPlot.rds")) %>% replace(is.na(.), "")
+
+kable(acq,"latex",booktabs=T,align="c",linesep=" ") %>% 
+  kable_styling(latex_options = "scale_down") %>% 
+  collapse_rows(1:2)%>% 
+  add_header_above(c(" "=3,"Filtered by Plot"=5),align="c") %>% 
+  kableExtra::kable_as_image(., filename = paste0(MetricsDir,"Acquisition_Table_All_byPlot"))
+
+```
