@@ -55,19 +55,15 @@ ProviceDir<- paste0(DataDir,"05_Province/")
 MetricsDir<- paste0(DataDir,"06_Metrics/")
 ManagementDir<-paste0(DataDir,"Management/")
 
-#* 2.2 Directory2: Server Workspace ----
+#* 2.2 Directory2: Server ----
 WorkspaceDir<-"Y:/Workspaces/RosM/"
-
-#* 2.3 Directory3: SAO Server ----
 SAO_Vegetationdir <-"U:/SAO/SENTINEL-2/SentinelVegetationProducts/"
 SAO_NDVIdir<- paste0(SAO_Vegetationdir,"S2_NDVIMaps_NoLC_noLAEA")
 SAO_LAIdir<-  paste0(SAO_Vegetationdir,"SentinelLAI")
 SAO_Metadir<- paste0(SAO_Vegetationdir,"Metadata_xmls")
 
-
 # 2.4. Directory Monalisa Phenocams
 MNLS_Phenodir<- "M:/ProjectData/MONALISA/Pillar2/PhenoCam/PhenoCam/"
-
 
 # 3. Global Input ----
 sen2names<-c("Platform","Sensor","Level","GResol","AcqDate","Baseline","Sen2Cor","Tile","ProdDescr","Product","Projection")
@@ -111,6 +107,15 @@ simpleCap <- function(x,first=T) {
 
 # Factors to numeric conversion
 as.numeric.factor <- function(x) {as.numeric(as.character(x))}
+
+# Save both RDS and CSV
+write.RDSCSV<-function(file,name){
+  
+  write.csv(file,file = paste0(name,".csv"))
+  saveRDS(file,file = paste0(name,".rds"))
+  
+}
+
 
 #* 4.2. InSitu Functions ----
 
@@ -384,6 +389,9 @@ addNear<-function(oldtab,newtab,col="Sentinel"){
   return(newtab)
 }
 
+# Bind all columns of data frame df together and rename them
+allbind<-function(df,y1,y2) cbind(select(df,"Date"),select(df,y1),select(df,y2)) %>% setNames(c("Date","X","Y"))
+
 # Get the LM by two strings for columns
 mod_fun<-function(df,y1,y2,glance=T) {
   
@@ -400,11 +408,7 @@ mod_fun<-function(df,y1,y2,glance=T) {
   
 }
 
-# Bind all columns of data frame df together and rename them
-allbind<-function(df,y1,y2) cbind(select(df,"Date"),select(df,y1),select(df,y2)) %>% setNames(c("Date","X","Y"))
-
-
-
+# Get the coefficients for the Cross correlation function
 ccf_fun<-function(df,y1,y2) {
   
   a<-df %>% select(c(y1,y2)) %>% na.omit
