@@ -4,4 +4,5 @@
 .RData
 .Ruserdata
 /Images
-/Old
+R/Old
+R/Markdown/Kable_cache
