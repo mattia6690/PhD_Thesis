@@ -47,7 +47,7 @@ acq<-readRDS(file=paste0(MetricsDir,"AllData_byPlot.rds")) %>% replace(is.na(.),
 kable(acq,"latex",booktabs=T,align="c",linesep=" ") %>% 
   kable_styling(latex_options = "scale_down") %>% 
   collapse_rows(1:2)%>% 
-  add_header_above(c(" "=3,"Filtered by Plot"=5),align="c") %>% 
+  add_header_above(c(" "=3,"Preprocessed"=5),align="c") %>% 
   kableExtra::kable_as_image(., filename = paste0(MetricsDir,"Acquisition_Table_All_byPlot"))
 
 ```
