@@ -215,21 +215,21 @@ saveRDS(gapfill.db,file = paste0(MetricsDir,"AllSensorData",suffix,"_gapFill.rds
 
 # Correlations DOY --------------------------------------------------------
 
-names<-list(c("Spectrometer","Sentinel2"),
-            c("Spectrometer","Decagon"),
+names<-list(c("Spectrometer","Sentinel-2 MSI"),
+            c("Spectrometer","SRS"),
             c("Spectrometer","Phenocam"),
-            c("Phenocam","Sentinel2"),
-            c("Phenocam","Decagon"),
-            c("Decagon","Sentinel2"))
+            c("Phenocam","Sentinel-2 MSI"),
+            c("Phenocam","SRS"),
+            c("SRS","Sentinel-2 MSI"))
 
-names2<-map(names,function(i) paste(i,collapse="_")) %>% unlist %>% c("Station","Plot",.)
+names2<-map(names,function(i) paste(i,collapse=" & ")) %>% unlist %>% c("Station","Plot",.)
 
 
 db2<-gapfill.db %>% distinct %>% spread(Sensor,Value) %>% 
   filter(Date>="2017-03-01" & Date<"2017-11-01")
 db3<-db2 %>% group_by(Date,Station,Plot) %>% 
-  dplyr::summarise(Decagon=mean(Decagon_SRS,na.rm=T),
-                   Sentinel2=mean(Sentinel2_MSI,na.rm=T),
+  dplyr::summarise(SRS=mean(Decagon_SRS,na.rm=T),
+                   'Sentinel-2 MSI'=mean(Sentinel2_MSI,na.rm=T),
                    Phenocam=mean(Phenocam,na.rm=T),
                    Spectrometer=mean(Spectrometer,na.rm=T)) %>% ungroup
 
@@ -310,14 +310,18 @@ ccf<- ccf.raw %>%
   separate(.,Plot,into=c("Site","ROI")) %>% select(-Site) %>% 
   filter(ROI=="Site")
 
-gg.ccf<-ggplot(ccf,aes(Lags,R))+ theme_bw()+
-  geom_bar(stat="identity",width = .5)+
+ccf.subset<-ccf %>% filter(!grepl("Spectrometer",Scales))
+
+gg.ccf<-ggplot(ccf.subset,aes(Lags,R))+ theme_bw()+
+  geom_bar(stat="identity",width = .2)+
+  geom_point()+
   geom_vline(xintercept=0,linetype="dashed")+
   facet_grid(vars(Station),vars(Scales))+
   ylab("Correlation Coefficient (R)")+
   xlab("Lag (in Days)")
 
-ggsave(gg.ccf,filename = "C:/Users/MRossi/Documents/03_Data/06_Metrics/NDVI_CCF.png",device = "png",width=12,height=8)
+ggsave(gg.ccf,filename = "C:/Users/MRossi/Documents/03_Data/06_Metrics/NDVI_CCF_nospec.png",device = "png",width=12,height=8)
+ggsave(gg.ccf,filename = "C:/Users/MRossi/Documents/03_Data/06_Metrics/NDVI_CCF_nospec.jpg",device = "jpeg",width=12,height=8)
 
 
 # Plot: Differences ---------------------------------------------------
@@ -420,6 +424,8 @@ g<-ggplot(db.all2,aes(Date,Value,color=Sensor))+ylim(c(-.5,1))+ theme_bw()+
 
 g1 <- g + facet_wrap(Station~.) + theme(legend.position = "bottom")
 ggsave(g1,filename = "C:/Users/MRossi/Documents/03_Data/06_Metrics/NDVI_Station.png",device = "png",width=12,height=8)
+ggsave(g1,filename = "C:/Users/MRossi/Documents/03_Data/06_Metrics/NDVI_Station_sml.jpg",device = "jpeg",width=10,height=8)
+
 
 g2 <- g + facet_wrap(Station~.,ncol = 1)
 ggsave(g2,filename = "C:/Users/MRossi/Documents/03_Data/06_Metrics/NDVI_Station_long.png",device = "png",width=5,height=15)
@@ -484,7 +490,7 @@ ggsave(gcorr,filename = "C:/Users/MRossi/Documents/03_Data/06_Metrics/NDVIall_by
 
 # Acquisition Table -------------------------------------------------------
 
-Acquisitions<-c(16740,4283,70,5,16895,4556,122,7,16190,4681,70,2,16615,4587,70,12)
+Acq<-c(16740,4283,70,5,16895,4556,122,7,16190,4681,70,2,16615,4587,70,12)
 
 db1<-db %>% 
   filter(Date>="2017-03-01" & Date<="2017-11-01") %>% 
@@ -494,7 +500,8 @@ db1<-db %>%
   mutate(N=map_dbl(data,nrow)) %>% 
   select(-data) %>% 
   tidyr::spread(.,ID,value=N) %>% 
-  add_column(Acquisitions,.after="Sensor")
+  add_column(Acq,.after="Sensor") %>% 
+  rename('Raw Acquisitions'=Acq)
 
 saveRDS(db1,file = paste0(MetricsDir,"AllData_byPlot.rds"))
 
