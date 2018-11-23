@@ -25,8 +25,6 @@ ITA<-readOGR(paste0(DataDir,"/Shapes/00_General"),"ITA_adm0") %>% st_as_sf()
 extvi<-stations %>% filter(Region=="Vinschgau") %>% st_bbox %>% st_as_sfc %>% st_buffer(dist=.1)
 extdo<-stations %>% filter(Region=="Dolomites") %>% st_bbox %>% st_as_sfc %>% st_buffer(dist=.1)
 
-
-
 extST1<-ST %>% extent %>% as.matrix %>% as.numeric
 extST2<-ST %>% st_buffer(dist=.5) %>% extent %>% as.matrix %>% as.numeric
 
@@ -58,3 +56,28 @@ g2<-ggplot()+theme_light()+
   geom_sf(data=extdo,inherit.aes = F,fill=NA,size=1.2,color="deepskyblue")
 
 ggsave(g2,filename = paste0(DataDir,"Images/ItalyST_gg.png"),device = "png",height=12,width=8)
+
+
+# Smoothed generic Plot
+
+g1<- ggplot()+ theme_bw()+
+  geom_sf(data=ST,inherit.aes = FALSE,fill="darkolivegreen3",color="darkolivegreen2",size=1.5,alpha=.1)+
+  geom_sf(data=stations,inherit.aes = F,cex=4,pch=17)+
+  geom_sf(data=extvi,inherit.aes = F,fill=NA,size=1.2,color="red")+
+  geom_sf(data=extdo,inherit.aes = F,fill=NA,size=1.2,color="deepskyblue")+
+  geom_text(data=stations, aes(x=lon, y=lat, label=Name),hjust = .6, nudge_y = 0.05,size=6, position = ) +
+  xlab("Longitude")+ylab("Latitude")+
+  theme(legend.position="none")+
+  annotation_scale(location = "bl", width_hint = 0.3)+
+  annotation_north_arrow(location = "bl", which_north = "true", 
+                         pad_x = unit(0.1, "in"), pad_y = unit(0.25, "in"),
+                         style = north_arrow_fancy_orienteering)
+
+ggsave(g1,filename = paste0(DataDir,"Images/StudySites_generic.png"),device = "png",height=7,width=12)
+
+
+
+# Get Station Coordinates
+loadandinstall("measurements")
+stations<-st_read(paste0(WorkspaceDir,"/01_Data/KML"),"Mattia_Stations_PhD")[,1] %>% filter(Name!="P2")
+st_geometry(stations) %>% unlist %>% matrix(.,ncol=3,byrow=T)

@@ -18,7 +18,7 @@ tempdir<-"C:/Users/MRossi/Documents/08_Temp/"
 outname<-paste0(tempdir,"S2_Tiles_lac.shp")
 inter2<-st_read(outname)
 
-outline<-inter2 %>% group_by(Inside_AC) %>% summarize()
+outline<-inter2 %>% group_by(Inside_AC) %>% dplyr::summarize()
 
 s2kmltable<-function(kmlfile){
   
