@@ -53,12 +53,11 @@ lj2<-left_join(insitu_raw,set2,by=c("Date","Station","OP1"))
 if(write.outputs==T) write.RDSCSV(lj2,paste0(dir,"/","InSituMetrics1_tidy_combined_ndvi"))
 
 # LAI tables --------------------------------------------------------------
-
-insitu.raw.all<-l1j %>% 
-  filter(OP3=="LAI") %>% 
-  group_by(Date,Station,OP1,OP2) %>% 
-  dplyr::summarise(meanLAI=mean(Value)) %>% 
+insitu.raw.all<-lj1 %>% 
+  filter(OP3=="LAI"|OP3=="MTA") %>% 
+  group_by(Date,Station,OP1,OP2,OP3) %>% 
+  dplyr::summarise(Mean=mean(Value)) %>% 
   filter(Station!="P2") %>% 
   ungroup
 
-if(write.outputs==T) write.RDSCSV(lj2,paste0(Workspacedir,"07_Products/InSituLAI.rds"))
+if(write.outputs==T) write.RDSCSV(insitu.raw.all,paste0(Workspacedir,"07_Products/InSituLAI2"))
