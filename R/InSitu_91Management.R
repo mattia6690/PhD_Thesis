@@ -47,16 +47,19 @@ Manage.all<-rbind(Manage1,Manage2,Manage3,Manage4)
 saveRDS(Manage.all,file = paste0(DataDir,"/Management/Complete_Management_2017.rds"))
 
 
-
 # Management from Phenocam Evaluation
 
 loc<-"C:/Users/MRossi/Documents/03_Data/Management/VIMES1500_OccurencesPhenoCam_2017.xlsx"
-sheets<-loc %>%
+sheets.comp<-loc %>%
   excel_sheets %>% as.tibble %>% 
   mutate(Management=map(value,function(x,l=loc) read_xlsx(l,sheet=x))) %>% unnest
 
-saveRDS(sheets,file = paste0(DataDir,"/Management/Complete_Management_2017.rds"))
+sheets.plot<-Manage.Site %>% 
+  mutate(Plot=paste0(Station,"_Site")) %>% 
+  mutate(Date=as_date(Date)) %>% 
+  filter(Event=="Snow" | Event=="Harvest")
 
-
+saveRDS(sheets.comp,file = paste0(DataDir,"/Management/Management_2017_complete.rds"))
+saveRDS(sheets.plot,file = paste0(DataDir,"/Management/Management_2017_plot.rds"))
 
 

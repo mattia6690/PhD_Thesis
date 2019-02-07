@@ -405,8 +405,8 @@ allbind<-function(df,y1,y2) cbind(select(df,"Date"),select(df,y1),select(df,y2))
 # Get the LM by two strings for columns
 mod_fun<-function(df,y1,y2,glance=T) {
   
-  a<-df %>% select(y1) %>% unique
-  b<-df %>% select(y2) %>% unique
+  a<-df %>% dplyr::select(y1) %>% unique
+  b<-df %>% dplyr::select(y2) %>% unique
   
   if(nrow(a)>1 & nrow(b)>1) {
     
@@ -421,7 +421,7 @@ mod_fun<-function(df,y1,y2,glance=T) {
 # Get the coefficients for the Cross correlation function
 ccf_fun<-function(df,y1,y2) {
   
-  a<-df %>% select(c(y1,y2)) %>% na.omit
+  a<-df %>% dplyr::select(c(y1,y2)) %>% na.omit
   if(nrow(a)>0) {
     c<-Ccf(a[,1],a[,2],plot=F,lag.max = 20)
     d<-cbind.data.frame(c[[4]],c[[1]])
@@ -430,5 +430,15 @@ ccf_fun<-function(df,y1,y2) {
   }
   
 }
+
+# Link the Locations
+loclink2<-map(stations,function(x) {
+  cbind.data.frame(x,
+                   c("ID1","ID2","ID3","ID4"),
+                   c(paste0(x,"_A"),paste0(x,"_B"),paste0(x,"_C"),paste0(x,"_D")))
+}) %>% 
+  do.call(rbind,.) %>% 
+  setNames(c("Station","OP1","ROI")) %>% 
+  add_column(Date=NA,.before=T) %>% as.tibble
 
 
