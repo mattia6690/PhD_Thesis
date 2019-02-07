@@ -1,9 +1,9 @@
 ---
 title: "TestDocument"
 output:
-  word_document: default
   html_document:
     df_print: paged
+  word_document: default
   pdf_document: default
 ---
 
@@ -29,6 +29,7 @@ library(magrittr)
 library(tidyverse)
 library(magick)
 
+asimage<-F
 
 DataDir<-"C:/Users/MRossi/Documents/03_Data/"
 MetricsDir<- paste0(DataDir,"06_Metrics/")
@@ -36,18 +37,35 @@ MetricsDir<- paste0(DataDir,"06_Metrics/")
 suffix<-"200818"
 pt<-readRDS(file = paste0(MetricsDir,"AllSensorData",suffix,"_CorrelationAll.rds"))
 pt1<-pt %>% replace(is.na(.), "")
-kable(pt1,"latex",booktabs=T,align="c",linesep=" ") %>% 
-  kable_styling(latex_options = "scale_down") %>% 
-  collapse_rows(1:2,row_group_label_position = "stack")%>% 
-  add_header_above(c(" ","Sensors"=2," ","Plots"=5),align="c") %>% 
-  kableExtra::kable_as_image(., filename = paste0(MetricsDir,"Correlation_Table_All_byPlot"))
+data <- data.frame(lapply(pt1, function(x) { gsub("Decagon", "Decagon_SRS", x)}))
 
+kable(data,"latex",booktabs=T,align="c",linesep=" ") %>% 
+  kable_styling(latex_options = "scale_down") %>% 
+  collapse_rows(1:2,row_group_label_position = "stack") %>% 
+  add_header_above(c(" ","Sensors"=2," ","Plots"=4),align="c")
+  
 acq<-readRDS(file=paste0(MetricsDir,"AllData_byPlot.rds")) %>% replace(is.na(.), "")
 
 kable(acq,"latex",booktabs=T,align="c",linesep=" ") %>% 
   kable_styling(latex_options = "scale_down") %>% 
   collapse_rows(1:2)%>% 
-  add_header_above(c(" "=3,"Preprocessed"=5),align="c") %>% 
-  kableExtra::kable_as_image(., filename = paste0(MetricsDir,"Acquisition_Table_All_byPlot"))
+  add_header_above(c(" "=3,"Preprocessed"=5),align="c") 
+  
+
+kable(data,"html",booktabs=T,align="c",linesep=" ") %>% 
+  kable_styling(latex_options = "scale_down") %>% 
+  collapse_rows(1:2,row_group_label_position = "stack")
+
+kable(acq,"html",booktabs=T,align="c",linesep=" ") %>% 
+  kable_styling(latex_options = "scale_down") %>% 
+  collapse_rows(1:2)
+
+
+if(asimage==T){
+  
+  kableExtra::kable_as_image(k1, filename = paste0(MetricsDir,"Correlation_Table_All_byPlot"))
+  kableExtra::kable_as_image(k2, filename = paste0(MetricsDir,"Acquisition_Table_All_byPlot"))
+  
+}
 
 ```
