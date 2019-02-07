@@ -14,11 +14,9 @@ library(ggplot2)
 library(rlang)
 library(plotly)
 
-tempdir<-"C:/Users/MRossi/Documents/08_Temp/"
-outname<-paste0(tempdir,"S2_Tiles_lac.shp")
-inter2<-st_read(outname)
-
-outline<-inter2 %>% group_by(Inside_AC) %>% dplyr::summarize()
+tempdir<-"C:/Users/MRossi/Documents/Temp/"
+outname<-paste0(tempdir,"S2_Tiles_lac_v2.shp")
+outline<-st_read(outname)
 
 s2kmltable<-function(kmlfile){
   
@@ -134,18 +132,23 @@ ggsave(g1,filename=paste0(fileout,".png"), width = 297, height = 210, units = "m
 
 tilefreq<-table(lj2$Tile)
 ljtile<-lj3 %>% 
-  select(ObservationTimeStart,Satellite,Tile) %>% 
+  dplyr::select(ObservationTimeStart,Satellite,Tile) %>% 
   distinct
 
 table<-ljtile %>% 
   as.data.frame() %>% 
-  select(-geometry) %>% 
+  dplyr::select(-geometry) %>% 
   tidyr::separate(.,ObservationTimeStart,c("Date","Time"),sep="T")
 
 write.csv(table,paste0(fileout,".csv"))
 saveRDS(table,paste0(fileout,"rds"))
 
-freq<-lj4 %>% as.data.frame %>% select(Tile) %>% table %>% as.data.frame() %>% setNames(c("Tile","Frequency"))
+freq<-lj4 %>% 
+  as.data.frame %>% 
+  dplyr::select(Tile) %>% 
+  table %>% 
+  as.data.frame() %>% 
+  setNames(c("Tile","Frequency"))
 
 lj5<-left_join(lj4,freq)
 lj5$Date<-lj5$ObservationTimeStart %>% as_date
@@ -168,5 +171,4 @@ g2<-ggplot()+
 #   geom_text(aes(label = Tile, x = lon, y = lat), size = 5) +
 #   ggtitle("Sentinel 2 Tiles in the Large Alpine Convention")+
 #   scale_fill_distiller(palette = "Spectral")
-
 
