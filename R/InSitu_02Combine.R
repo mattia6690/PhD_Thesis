@@ -61,3 +61,13 @@ insitu.raw.all<-lj1 %>%
   ungroup
 
 if(write.outputs==T) write.RDSCSV(insitu.raw.all,paste0(Workspacedir,"07_Products/InSituLAI2"))
+
+
+# Biomass Tables
+insitu.raw.bio<-lj1 %>% 
+  filter(Scale2=="Biomass") %>% 
+  filter(OP2=="Location"|OP2=="Laboratory") %>% 
+  select(Date,Station,Scale1,Scale2,OP1,OP2,OP3,Value)
+
+if(write.outputs==T) write.RDSCSV(insitu.raw.bio,paste0(Workspacedir,"07_Products/InSituBiomass2017"))
+
