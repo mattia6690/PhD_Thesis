@@ -9,7 +9,6 @@ library(tidyr)
 library(purrr)
 library(tibble)
 library(Rcpp)
-#devtools::install_github("tidyverse/ggplot2")   # You need the newest possible ggplot version (>2.2.1) with geom_sf() function
 library(ggplot2)
 library(rlang)
 library(plotly)
@@ -73,7 +72,6 @@ urls<-map(names,function(i){
 }) %>% unlist
 
 satellite<- urls %>% 
-  unlist %>% 
   basename %>% 
   map(.,function(i) str_split(i,pattern="_") %>% unlist %>% .[1]) %>% 
   unlist
@@ -88,7 +86,7 @@ maps<-map2(urls,satellite,function(url,sa){
   
   table<-s2kmltable(file) %>% 
     mutate(Name=ID)
-  inter3<-st_intersection(inter2,sr)
+  inter3<-st_intersection(outline,sr)
   inter3$Satellite=sa
   lj<-left_join(inter3,table,by="Name") %>% 
     select(Satellite,Tile,ObservationTimeStart,ObservationTimeStop,Scenes) %>% 
@@ -121,7 +119,7 @@ sti<-readOGR("C:/Users/MRossi/Documents/03_Data/Shapes/00_General","SouthTyrol")
 
 g1<-ggplot()+
   geom_sf(data=outline)+
-  geom_sf(data=lj4,aes(fill=Sentinel))+
+  geom_sf(data=lj4,aes(fill=Satellite))+
   geom_sf(data=sti,color="black",fill=NA)+
   facet_wrap(~ObservationTimeStart,ncol=6)+
   theme(panel.grid.major.x = element_line(color = "grey", linetype = 2))+
@@ -133,7 +131,7 @@ ggsave(g1,filename=paste0(fileout,".png"), width = 297, height = 210, units = "m
 tilefreq<-table(lj2$Tile)
 ljtile<-lj3 %>% 
   dplyr::select(ObservationTimeStart,Satellite,Tile) %>% 
-  distinct
+  distinct(.,.keep_all=T)
 
 table<-ljtile %>% 
   as.data.frame() %>% 
