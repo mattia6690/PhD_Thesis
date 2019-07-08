@@ -6,6 +6,7 @@ stations<-c("Domef1500","Domef2000","Vimef2000","Vimes1500")
 suffix<-"110119"
 subfolder<-"01_Combination"
 
+insitu.data.all <- paste0(dirfield,"/04_Combined","/InSituMetrics1_tidy_combined.rds")
 insitu.data <- paste0(dirfield,"/04_Combined","/InSituMetrics1_tidy_combined_ndvi.rds")
 srs.data    <- paste0(Monalisa17Dir,"Monalisa_NDVI_filtered_MovingWindow_100818.rds")
 pheno.data  <- paste0(MNLS_Phenodir,"00_Combination/Filter/02_MovingWindow_byday.rds") 
@@ -15,6 +16,7 @@ combdir<-paste0(MetricsDir,subfolder,"/")
 
 # Data Import -------------------------------------------------------------
 #* In-situ -----------------------------------------------------------------
+insitu.raw.all<-readRDS(insitu.data.all) 
 insitu.raw<-readRDS(insitu.data) 
 loclink<-insitu.raw %>% 
   dplyr::select(Date,Station,OP1,ROI) %>% 
@@ -88,7 +90,7 @@ s2.raw<-readRDS(s2.data) %>%
   mutate(Station=as.character(Station)) %>% 
   mutate(OP1=as.character(OP1))
 
-sentinel<-ml.ndvi %>%
+sentinel<-s2.raw %>%
   filter(is.na(Date)) %>% 
   dplyr::select(-Date) %>% 
   distinct() %>% 
