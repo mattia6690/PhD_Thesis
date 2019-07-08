@@ -174,6 +174,27 @@ hypindices<-function(input,wavel1,wavel2,stat="NDVI"){
   
 }
 
+ndveg.indices<-function(input,lowrange,highrange,stat="highlow",round=3){
+  
+  if(length(lowrange)!=2 | length(highrange)!=2) stop("You have to put a range consisting of 2 numbers for both ranges")
+  
+  low  <- input %>% 
+    dplyr::filter(between(Wavel,lowrange[1],lowrange[2])) %>% 
+    select(Refl) %>% 
+    unlist %>% 
+    mean(.,na.rm=T)
+  high <- input %>% 
+    filter(between(Wavel,highrange[1],highrange[2])) %>% 
+    select(Refl) %>% 
+    unlist %>% 
+    mean(.,na.rm=T)
+  
+  if(stat=="lowhigh")  hyp <- round((low-high)/(low+high),round)
+  if(stat=="highlow")  hyp <- round((high-low)/(high+low),round)
+  return(hyp)
+  
+}
+
 #' Get the Density Limits
 .getDensityLimits<-function(selection,method="max"){
   
