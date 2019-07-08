@@ -1,176 +1,24 @@
 
+
+# Input -------------------------------------------------------------------
 source("R/BaseFunctions.R")
+library(readxl)
+library(broom)
+library(forecast)
 
 stations<-c("Domef1500","Domef2000","Vimef2000","Vimes1500")
-suffix<-"200818"
+suffix<-"110119"
+
+db<-readRDS(paste0(MetricsDir,"AllSensorData",suffix,".rds"))
+db.all<-readRDS(paste0(MetricsDir,"AllSensorData",suffix,"_filtered.rds"))
+db.mean<-readRDS(paste0(MetricsDir,"AllSensorData",suffix,"_meanDay.rds"))
+gapfill.db<-readRDS(paste0(MetricsDir,"AllSensorData",suffix,"_gapFill.rds"))
+
+Manage.Site<-readRDS(paste0(DataDir,"/Management/Management_2017_complete.rds"))
+Manage.Plot<-readRDS(paste0(DataDir,"/Management/Management_2017_plot.rds"))
 
 
-loclink2<-map(stations,function(x) {
-  cbind.data.frame(x,
-                   c("ID1","ID2","ID3","ID4"),
-                   c(paste0(x,"_A"),paste0(x,"_B"),paste0(x,"_C"),paste0(x,"_D")))
-}) %>% 
-  do.call(rbind,.) %>% 
-  setNames(c("Station","OP1","ROI")) %>% 
-  add_column(Date=NA,.before=T) %>% as.tibble
-
-
-
-# Data Import -------------------------------------------------------------
-#* In-situ -----------------------------------------------------------------
-dir<-paste0(dirfield,"/","04_Combined/")
-insitu.raw<-readRDS(paste0(dir,"/","InSituMetrics1_tidy_combined_ndvi.rds")) 
-loclink<-insitu.raw %>% select(Date,Station,OP1,ROI) %>% .[complete.cases(.),]
-loclink_all<-rbind(loclink,loclink2)
-
-insitu1<-insitu.raw %>% 
-  mutate(Plot=ROI) %>% 
-  mutate(OP3="mean") %>% 
-  dplyr::select(-c(OP1,ROI)) %>% 
-  dplyr::select(Date,Station,Plot,Scale1,Scale2,OP2,OP3,Value) 
-
-insitu2<-insitu1 %>% 
-  group_by(Date,Station,Scale1,Scale2,OP2) %>% 
-  dplyr::summarize(Value=mean(Value)) %>% ungroup %>% 
-  mutate(Plot=paste0(Station,"_Site")) %>% 
-  mutate(OP3="Mean") %>%
-  dplyr::select(Date,Station,Plot,Scale1,Scale2,OP2,OP3,Value)
-
-insitu<-rbind(insitu1,insitu2) %>% arrange(Date)
-
-#* Monalisa ----------------------------------------------------------------
-monalisa_raw<- readRDS(paste0(Monalisa17Dir,"Monalisa_NDVI_filtered_MovingWindow_100818.rds")) %>% ungroup
-
-decagon1<-monalisa_raw %>% 
-  mutate(Station=map_chr(Station,simpleCap)) %>% 
-  mutate(Plot=paste0(OP1,"_Station")) %>% 
-  dplyr::select(-OP1) %>% 
-  dplyr::select(Date,Station,Plot,Scale1,Scale2,OP2,OP3,Value)%>% 
-  slice(rep(1:n(),each=4)) %>% 
-  mutate(Plot=str_c(Station,"_",LETTERS[1:4])) %>% 
-  mutate(Scale1=map_chr(Scale1,function(x) simpleCap(tolower(x)))) %>% 
-  mutate(Scale2="Decagon_SRS")
-
-decagon2<-decagon1 %>% 
-  group_by(Date,Station,Scale1,Scale2,OP2) %>% 
-  dplyr::summarize(Value=mean(Value)) %>% ungroup %>% 
-  mutate(Plot=paste0(Station,"_Site")) %>% 
-  mutate(OP3="Mean") %>%
-  dplyr::select(Date,Station,Plot,Scale1,Scale2,OP2,OP3,Value)
-
-decagon<-decagon2
-
-#* Phenocam ----------------------------------------------------------------
-file<-paste0(paste0(MNLS_Phenodir,"00_Combination/Filter/02_MovingWindow_byday.rds")) %>% readRDS()
-
-phenocam1<- file %>% 
-  mutate(Station=map_chr(station,simpleCap)) %>% 
-  mutate(Date=Date2) %>% 
-  mutate(Plot=map_chr(ROI, function(x) simpleCap(as.character(x),first=T))) %>% 
-  add_column(Scale1="Proximal") %>% 
-  add_column(Scale2="Phenocam") %>%
-  add_column(OP3="90Percentile") %>% 
-  gather(.,key="OP2",value=Value,NDVI,GCC) %>% 
-  filter(Type=="Point") %>% 
-  filter(OP2=="NDVI") %>%
-  dplyr::select(Date,Station,Plot,Scale1,Scale2,OP2,OP3,Value)
-
-phenocam2<-phenocam1 %>% 
-  group_by(Date,Station,Scale1,Scale2,OP2) %>% 
-  dplyr::summarize(Value=mean(Value)) %>% ungroup %>% 
-  mutate(Plot=paste0(Station,"_Site")) %>% 
-  mutate(OP3="Mean") %>%
-  dplyr::select(Date,Station,Plot,Scale1,Scale2,OP2,OP3,Value)
-
-phenocam<-rbind(phenocam1,phenocam2) %>% arrange(Date)
-
-#* Sentinel-2 --------------------------------------------------------------
-ml<-readRDS(paste0(Workspacedir,"07_Products/Metrics_S2_Station_Selection_1608.rds"))
-ml.ndvi<-ml %>% 
-  filter(OP2=="NDVI") %>% 
-  filter(!is.na(Value)) %>% 
-  mutate(Station=as.character(Station)) %>% 
-  mutate(OP1=as.character(OP1))
-
-sentinel<-ml.ndvi %>%
-  filter(is.na(Date)) %>% 
-  select(-Date) %>% 
-  distinct() %>% 
-  filter(OP3!="Sd") %>%
-  mutate(Value=Value/10000) %>% 
-  mutate(Date=as_date(NA)) %>% 
-  full_join(.,loclink_all,by=c("Date","Station","OP1")) %>% 
-  mutate(Date=Date.Sen) %>% 
-  mutate(Plot=ROI) %>% 
-  filter(OP1!="Station" & OP1!="Buffer") %>% 
-  mutate(Plot=pmap_chr(list(Station,Plot,OP1),function(x,y,z)ifelse(z=="Site",paste0(x,"_",z),y))) %>% 
-  mutate(Scale2="Sentinel2_MSI") %>% 
-  filter(!is.na(Plot)) %>% 
-  filter(!is.na(Value)) %>% 
-  dplyr::select(Date,Station,Plot,Scale1,Scale2,OP2,OP3,Value)
-
-
-sentinel2<- ml.ndvi %>% 
-  filter(OP3!="Sd") %>%
-  mutate(Value=Value/10000) %>% 
-  full_join(.,loclink_all,by=c("Date","Station","OP1")) %>% 
-  mutate(Date_fin=map2_dbl(Date,Date.Sen,function(x,y) ifelse(is.na(x),y,x))) %>% 
-  mutate(Date_fin=as_date(Date_fin)) %>% 
-  mutate(Date=Date_fin) %>% 
-  mutate(Plot=ROI) %>% 
-  filter(OP1!="Station" & OP1!="Buffer") %>% 
-  mutate(Plot=pmap_chr(list(Station,Plot,OP1),function(x,y,z)ifelse(z=="Site",paste0(x,"_",z),y))) %>% 
-  mutate(Scale2="Sentinel2_MSI") %>% 
-  filter(!is.na(Plot)) %>% 
-  filter(!is.na(Value)) %>% 
-  dplyr::select(Date,Station,Plot,Scale1,Scale2,OP2,OP3,Value)
-
-
-#* Management --------------------------------------------------------------
-library(readxl)
-loc<-"C:/Users/MRossi/Documents/03_Data/Management/VIMES1500_OccurencesPhenoCam_2017.xlsx"
-Manage.Site<-loc %>%
-  excel_sheets %>% as.tibble %>% setNames("Station") %>% 
-  mutate(Management=map(Station,function(x,l=loc) read_xlsx(l,sheet=x))) %>% unnest
-
-
-Manage.Plot<-Manage.Site %>% 
-  mutate(Plot=paste0(Station,"_Site")) %>% 
-  mutate(Date=as_date(Date)) %>% 
-  filter(Event=="Snow" | Event=="Harvest")
-
-saveRDS(Manage.Site,file = paste0(DataDir,"/Management/Complete_Management_2017.rds"))
-
-# Data Combination ----------------------------------------------------------
-library("xts")
-library("broom")
-
-db<-bind_rows(insitu,decagon,phenocam,sentinel) %>% 
-  .[complete.cases(.$Plot),] %>% 
-  dplyr::rename(Sensor=Scale2) %>% 
-  filter(Station!="P2")
-
-saveRDS(db,file = paste0(MetricsDir,"AllSensorData",suffix,".rds"))
-
-db.all<-db  %>% 
-  filter(!is.na(Sensor))%>% 
-  arrange(Date) %>% 
-  filter(Date>="2017-03-01") %>% 
-  filter(Date<"2017-11-01")
-
-saveRDS(db.all,file = paste0(MetricsDir,"AllSensorData",suffix,"_filtered.rds"))
-
-db.mean<-db %>% 
-  filter(OP2=="NDVI") %>% 
-  group_by(Date,Station,Scale1,Sensor,OP2,OP3) %>% 
-  dplyr::summarise(Value=mean(Value)) %>% 
-  ungroup %>% filter(!is.na(Value) & !is.na(Sensor))
-
-saveRDS(db.mean,file = paste0(MetricsDir,"AllSensorData",suffix,"_meanDay.rds"))
-
-
-
-# Descriptive Stats -------------------------------------------------------
+# Descriptive Statistics ---------------------------------------------------
 
 site.stats<-db %>% 
   separate(Plot,c("Sti","Plot"),"_") %>% 
@@ -180,38 +28,6 @@ site.stats<-db %>%
   dplyr::summarise(Mean=mean(Value),Min=min(Value),Max=max(Value)) %>% ungroup() %>% 
   gather(key=Statistics, value=Value,Mean,Max,Min) %>% 
   spread(.,key=Sensor,value=Value)
-
-# Linear Gap Filling ----------------------------------------------------------
-
-gpdb.fill<-db.all %>% 
-  mutate(Date=as.Date(Date)) %>% 
-  group_by(Station,Plot,Scale1,Sensor,OP2) %>% nest %>% 
-  arrange(Station,Plot) 
-
-gpdb.ts <- gpdb.fill %>% 
-  mutate(ts.approx=map(data,function(i){
-    
-    df1<-as.data.frame(i) %>% select(Date,Value)
-    df1.zoo<-xts(df1[,-1],df1[,1]) 
-    ts<-zoo(,seq(start(df1.zoo),end(df1.zoo),by=1))
-    df2 <- merge(df1.zoo,ts, all=TRUE) %>% setNames("Value")
-    df3<-xts(na.approx(df2$Value)) %>%  data.frame(Date=index(.))
-    
-  }))
-
-gapfill.db<-gpdb.ts %>% 
-  select(-data) %>% unnest %>% 
-  select(Date,Station,Plot,Scale1,Sensor,OP2,Value) %>% 
-  filter((Station!="Vimes1500") & (Date>"2017-07-17" | Date<"2017-07-03"))
-
-gapfill.db<-gpdb.ts %>% 
-  select(-data) %>% unnest %>% 
-  select(Date,Station,Plot,Scale1,Sensor,OP2,Value)
-
-wh<-which(gapfill.db$Station=="Vimes1500" & gapfill.db$Date>"2017-07-03" & gapfill.db$Date<"2017-07-17")
-gapfill.db<-slice(gapfill.db,-wh)
-
-saveRDS(gapfill.db,file = paste0(MetricsDir,"AllSensorData",suffix,"_gapFill.rds"))
 
 # Correlations DOY --------------------------------------------------------
 
@@ -227,15 +43,17 @@ names2<-map(names,function(i) paste(i,collapse=" & ")) %>% unlist %>% c("Station
 
 db2<-gapfill.db %>% distinct %>% spread(Sensor,Value) %>% 
   filter(Date>="2017-03-01" & Date<"2017-11-01")
-db3<-db2 %>% group_by(Date,Station,Plot) %>% 
-  dplyr::summarise(SRS=mean(Decagon_SRS,na.rm=T),
-                   'Sentinel-2 MSI'=mean(Sentinel2_MSI,na.rm=T),
-                   Phenocam=mean(Phenocam,na.rm=T),
-                   Spectrometer=mean(Spectrometer,na.rm=T)) %>% ungroup
 
-db3.nest <- db3 %>% group_by(Station,Plot) %>% nest
+db3<-db2 %>% 
+  group_by(Date,Station,Plot) %>% 
+  dplyr::summarise('SRS' = mean(Decagon_SRS,na.rm=T),
+                   'Sentinel-2 MSI' = mean(Sentinel2_MSI,na.rm=T),
+                   'Phenocam' = mean(Phenocam,na.rm=T),
+                   'Spectrometer' = mean(Spectrometer,na.rm=T)) %>% 
+  group_by(Station,Plot) %>% 
+  nest
 
-d.nest<- db3.nest %>% 
+d.nest<- db3 %>% 
   mutate(t1=map(data,function(x,y=names[[1]]) allbind(x,y[1],y[2]))) %>% 
   mutate(t2=map(data,function(x,y=names[[2]]) allbind(x,y[1],y[2]))) %>% 
   mutate(t3=map(data,function(x,y=names[[3]]) allbind(x,y[1],y[2]))) %>% 
@@ -254,21 +72,21 @@ saveRDS(d.nest,file = paste0(MetricsDir,"AllSensorData",suffix,"_CorrelationDOY.
 
 # Correlations All ------------------------------------------------------------
 
-d.nest<- db3.nest %>% 
+d.nest<- db3 %>% 
   mutate(t1=map(data,function(x,y=names[[1]]) mod_fun(x,y[1],y[2]))) %>% 
   mutate(t2=map(data,function(x,y=names[[2]]) mod_fun(x,y[1],y[2]))) %>% 
   mutate(t3=map(data,function(x,y=names[[3]]) mod_fun(x,y[1],y[2]))) %>% 
   mutate(t4=map(data,function(x,y=names[[4]]) mod_fun(x,y[1],y[2]))) %>% 
   mutate(t5=map(data,function(x,y=names[[5]]) mod_fun(x,y[1],y[2]))) %>% 
   mutate(t6=map(data,function(x,y=names[[6]]) mod_fun(x,y[1],y[2]))) %>% 
-  select(-data) %>% 
+  dplyr::select(-data) %>% 
   setNames(names2) %>% 
   gather(.,key=Scales,value = Value,-c(Station,Plot)) %>%
   mutate(Select=map_dbl(Value,function(x) ifelse(any(is.na(x)),0,1))) %>% 
   filter(Select==1) %>% 
   unnest %>% 
-  tidyr::separate(.,Scales,into=c("Scale1","Scale2"),sep="_") %>% 
-  select(-Select)
+  tidyr::separate(.,Scales,into=c("Scale1","Scale2"),sep=" & ") %>% 
+  dplyr::select(-Select)
 
 cors<-d.nest  %>% 
   mutate(Stars=map_chr(p.value,function(x) {
@@ -280,19 +98,21 @@ cors<-d.nest  %>%
   })) %>% 
   mutate(R.squared=pmap_chr(list(r.squared,Stars,df.residual),function(x,y,z) paste0(round(x,2),y)))
 
-plottab1<-cors %>% rename(N=df.residual) %>% select(Station,Plot,Scale1,Scale2,N,R.squared)
+plottab1<-cors %>% 
+  rename(N=df.residual) %>% 
+  dplyr::select(Station,Plot,Scale1,Scale2,N,R.squared)
 
-plottab2<-plottab1 %>% separate(.,col=Plot,into=c("Stat","ID"),sep="_") %>% 
+plottab2<-plottab1 %>% 
+  separate(.,col=Plot,into=c("Stat","ID"),sep="_") %>% 
   select(-Stat) %>% 
   spread(.,key=ID,value=R.squared)
 
-saveRDS(plottab2,file = paste0(MetricsDir,"AllSensorData",suffix,"_CorrelationAll.rds"))
+saveRDS(plottab2,file = paste0(MetricsDir,"AllSensorData",suffix,"_CorrelationAll01.rds"))
 
 
 # Cross Correlations ------------------------------------------------------
-library(forecast)
 
-ccf.raw<- db3.nest %>% 
+ccf.raw<- db3 %>% 
   mutate(t1=map(data,function(x,y=names[[1]]) ccf_fun(x,y[1],y[2]))) %>% 
   mutate(t2=map(data,function(x,y=names[[2]]) ccf_fun(x,y[1],y[2]))) %>% 
   mutate(t3=map(data,function(x,y=names[[3]]) ccf_fun(x,y[1],y[2]))) %>% 
@@ -405,6 +225,7 @@ ggsave(h1,filename = "C:/Users/MRossi/Documents/03_Data/06_Metrics/HistogramSite
 
 # Plot: Combination ---------------------------------------------------
 
+textcex<-17
 colors1=c("red","green2","blue","black")
 # * By Station -------------------------------------------------------------------
 
@@ -422,38 +243,77 @@ g<-ggplot(db.all2,aes(Date,Value,color=Sensor))+ylim(c(-.5,1))+ theme_bw()+
   scale_color_manual(values=colors1)+
   ylab("NDVI")
 
-g1 <- g + facet_wrap(Station~.) + theme(legend.position = "bottom")
-ggsave(g1,filename = "C:/Users/MRossi/Documents/03_Data/06_Metrics/NDVI_Station.png",device = "png",width=12,height=8)
-ggsave(g1,filename = "C:/Users/MRossi/Documents/03_Data/06_Metrics/NDVI_Station_sml.jpg",device = "jpeg",width=10,height=8)
+g1 <- g + facet_wrap(Station~.)+
+  theme(legend.background = element_blank(),
+        legend.box.background = element_rect(colour = "black"),
+        legend.text  = element_text(size = textcex),
+        strip.text.x = element_text(size = textcex),
+        axis.text.x  = element_text(size = textcex),
+        axis.text.y  = element_text(size = textcex),
+        legend.title = element_text(size = textcex+3),
+        axis.title = element_text(size = textcex+3))
 
+ggsave(g1,filename = "C:/Users/MRossi/Documents/03_Data/06_Metrics/NDVI_Station.png",device = "png",width=14,height=10,limitsize=FALSE)
 
 g2 <- g + facet_wrap(Station~.,ncol = 1)
 ggsave(g2,filename = "C:/Users/MRossi/Documents/03_Data/06_Metrics/NDVI_Station_long.png",device = "png",width=5,height=15)
+
+# Single Station
+
+station<-"Domef2000"
+dball_stat<-db.all2 %>% filter(Station==station)
+Manage_stat<-Manage.Plot %>% filter(Station==station)
+
+g.stat<-ggplot(dball_stat,aes(Date,Value,color=Sensor))+ylim(c(-.5,1))+ theme_bw()+
+  geom_point(alpha=.5,aes(pch=Sensor,size=Sensor))+
+  geom_line(linetype=4,alpha=.5)+
+  scale_x_date(limits=as.Date(c("2017-03-01","2017-11-01")),date_breaks = "1 month")+
+  theme(axis.text.x = element_text(angle = 25, hjust = 1))+
+  theme(legend.position="bottom")+
+  geom_vline(data=Manage_stat,aes(xintercept=Date,linetype=Event))+
+  scale_linetype_manual("Events",values=c("Harvest"="solid","Snow"="dotted"))+
+  scale_shape_manual(values=c(0,1,2,18))+
+  scale_size_manual(values=c(2,2,2,4))+
+  scale_color_manual(values=colors1)+
+  ylab("NDVI")
+
+fname<-paste0("C:/Users/MRossi/Documents/03_Data/06_Metrics/NDVI_Station_",station,".png")
+ggsave(g.stat,filename = fname,device = "png",width=10,height=7,limitsize=FALSE)
+
 
 # * By Plot -------------------------------------------------------------------
 
 db.all2 <- db.all %>% separate(.,Plot,into=c("Site","Plot")) %>% select(-Site) %>% filter(Plot!="Site")
 
-g1<-ggplot(db.all2,aes(Date,Value,color=Sensor))+ theme_bw() +
+g.p<-ggplot(db.all2,aes(Date,Value,color=Sensor))+ theme_bw() +
   geom_point(alpha=.5,aes(shape=Sensor,size=Sensor))+
   geom_line(linetype=4,alpha=.5)+
   ylim(c(-.5,1))+ 
   facet_grid(vars(Station),vars(Plot)) + 
-  scale_x_date(date_breaks = "1 month",date_labels = "%b %d")+
+  scale_x_date(date_breaks = "2 months",date_labels = "%b %d")+
   scale_shape_manual(values=c(0,1,18))+
   scale_size_manual(values=c(2,2,4))+
   theme(axis.text.x = element_text(angle = 25, hjust = 1))+
-  theme(legend.position = "bottom")+
   scale_color_manual(values=colors1[c(2,3,4)])+
   ylab("Normalized Difference Vegetation Index (NDVI) Signal")
 
-ggsave(g1,filename = "C:/Users/MRossi/Documents/03_Data/06_Metrics/NDVI_Point.png",device = "png",width=11,height=7)
+g1.p <- g.p + 
+  theme(legend.background = element_blank(),
+        legend.box.background = element_rect(colour = "black"),
+        legend.text  = element_text(size = textcex),
+        strip.text.x = element_text(size = textcex),
+        axis.text.x  = element_text(size = textcex),
+        axis.text.y  = element_text(size = textcex),
+        legend.title = element_text(size = textcex+3),
+        axis.title = element_text(size = textcex+3))
+
+ggsave(g1.p,filename = "C:/Users/MRossi/Documents/03_Data/06_Metrics/NDVI_Point.png",device = "png",width=14,height=10,limitsize=FALSE)
 
 # * Combined -------------------------------------------------------------------
 
 db.all2 <- db.all %>% separate(.,Plot,into=c("Site","Plot")) %>% select(-Site)
 
-g1<-ggplot(db.all,aes(Date,Value,color=Sensor))+ th ßßßßeme_bw() +
+g1<-ggplot(db.all,aes(Date,Value,color=Sensor))+ theme_bw() +
   geom_point(alpha=.5,aes(shape=Sensor,size=Sensor))+
   geom_line(linetype=4,alpha=.5)+
   ylim(c(-.5,1))+ 
@@ -651,15 +511,23 @@ maxgap<-6
 gp1<-gapfill.db %>% filter(Date>="2017-02-01"& Date<="2017-12-01")
 
 Manage.all.coefs<-gp1 %>% 
-  mutate(coefs=pmap(list(Date,Station,Sensor),function(x,y,z,g=gp1,l=maxgap){
+  mutate(coefs=pmap(list(Date,Station,Plot,Sensor),function(x,y,yy,z,g=gp1,l=maxgap){
     
     min<-x-l
     max<-x+l
     
-    x.bef<-g %>%  filter(Date>=min & Date<=x) %>% filter(Station==y) %>% filter(Sensor==z) %>%
+    x.bef<-g %>%  
+      filter(Date>=min & Date<=x) %>% 
+      filter(Station==y) %>% 
+      filter(Plot==yy) %>% 
+      filter(Sensor==z) %>%
       add_column(Iter=as.numeric(rownames(.)))
     
-    x.aft<-g %>%  filter(Date>=x & Date<=max) %>% filter(Station==y) %>% filter(Sensor==z) %>%
+    x.aft<-g %>% 
+      filter(Date>=x & Date<=max) %>% 
+      filter(Station==y) %>% 
+      filter(Plot==yy) %>% 
+      filter(Sensor==z) %>%
       add_column(Iter=as.numeric(rownames(.)))
     
     if(nrow(x.aft)>0 & nrow(x.bef)>0){
@@ -740,22 +608,93 @@ Manage.all.coefs<-gp1 %>%
   }))
 
 ManageList<-Manage.all.coefs %>% filter(Date>as.Date("2017-03-15")) %>% filter(Date<as.Date("2017-11-01"))
-ManageList2<- ManageList %>% unnest %>% mutate(Difference=abs(SlopeCoef)*abs(MeanDiff))
+ManageList2<- ManageList %>% 
+  unnest %>% 
+  mutate(Difference=abs(SlopeCoef)*abs(MeanDiff)) %>% 
+  mutate(DOY=yday(Date)) %>% 
+  group_by(Date,DOY,Station,Scale1,Sensor) %>% 
+  nest
+
+ManageList2 <- ManageList2 %>% 
+  mutate(Difference=map(data,function(x) mean(x$Difference))) %>% 
+  select(-data) %>% unnest
+
+ManageList2.norm<-ManageList2 %>% 
+  group_by(Station,Scale1,Sensor) %>% 
+  nest %>% 
+  mutate(Normalized=map(data,function(d){
+    
+    x<- d$Difference
+    n <- (x-min(x,na.rm=T))/(max(x,na.rm=T)-min(x,na.rm=T))
+    
+    return(n)
+    
+  })) %>% unnest
+
 br<-colorRampPalette(c("darkgreen","green","orange","brown"))(100)
 
-Managements<-Manage.Plot %>% select(Station,Date,Event)
+Managements<-Manage.Plot %>% mutate(DOY=yday(Date)) %>% select(Station,DOY,Event)
 
-g1<-ggplot(ManageList2,aes(x=Date,y=Difference))+ theme_bw()+
-  geom_point(alpha=.3)+
+# Facet by Sensor
+g1<-ggplot(ManageList2,aes(x=DOY,y=Difference))+ theme_bw()+
+  geom_smooth()+
+  geom_point(alpha=.1)+
   facet_grid(vars(Sensor),vars(Station),scales="free")+
   scale_colour_gradientn("Dates",colours=br, labels=as.Date)+
   ggtitle(paste("Difference in linear Slope and Mean NDVI by",maxgap,"days"))+
-  geom_vline(data=Manage.Plot,aes(xintercept=Date,linetype=Event))+
+  geom_vline(data=Managements,aes(xintercept=DOY,linetype=Event))+
   scale_linetype_manual("Events",values=c("Harvest"="solid","Snow"="dotted"))+
   theme(legend.position="none")+
   ylab("abs(diff(SlopeB,SlopeA)*mean(NDVI))")
 
+# Facet by Station
+  
+g2<-ggplot(ManageList2,aes(x=DOY,y=Difference,color=Sensor))+ theme_bw()+
+  geom_smooth()+
+  facet_grid(Station~.)
+
 ggsave(g1,filename = "C:/Users/MRossi/Documents/03_Data/06_Metrics/HarvestCoefficiaents.png",device = "png",width=9,height=7)
+
+
+# Test of the Spline Function
+
+ManageList3 <- ManageList2.norm %>% filter(Sensor!="Spectrometer")
+ManageList.tmp<-ManageList3 %>% mutate(Sensor="COMBINED")
+ManageList3 <- bind_rows(ManageList3, ManageList.tmp)
+  
+
+grp<-ManageList3 %>% 
+  group_by(Station,Sensor) %>% 
+  filter(!is.na(Normalized)) %>% 
+  nest
+
+freedom=50
+grp2<-grp %>%
+  mutate(Spline=map(data,function(x,d=freedom){
+    
+    if(nrow(x)<d) {d<-(nrow(x)-5)}
+    
+    Spline<-smooth.spline(x$DOY,x$Normalized,df=d) %>% 
+      predict() %>% 
+      as.data.frame() %>% 
+      setNames(c("DOY","Normalized"))
+    return(Spline)
+    
+  })) %>% 
+  select(-data) %>% 
+  unnest
+
+g1<-ggplot(ManageList3,aes(x=DOY,y=Normalized))+ theme_bw()+
+  geom_point(pch=1,col="grey")+
+  geom_line(data=grp2,aes(x=DOY,y=Normalized),col="blue")+
+  facet_grid(vars(Sensor),vars(Station),scales="free")+
+  scale_colour_gradientn("Dates",colours=br, labels=as.Date)+
+  ggtitle(paste("Normalized Spectral Changes in",maxgap,"days moving Window"))+
+  geom_vline(data=Managements,aes(xintercept=DOY,linetype=Event))+
+  scale_linetype_manual("Events",values=c("Harvest"="solid","Snow"="dotted"))+
+  theme(legend.position="none")+
+  ylab("Normalized Difference linear coefficients and NDVI")+
+  xlim(c(90,300))
 
 
 # PCA --------------------------------------------------------
