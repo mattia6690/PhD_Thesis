@@ -11,42 +11,52 @@ library("lubridate")
 library("purrr")
 library("readr")
 library("stringr")
-# Import Data -------------------------------------------------------------
+# Import  -------------------------------------------------------------
 
 data.raw<-readRDS("C:/Users/MRossi/Documents/03_Data/03_InSitu/02_Province/BoundData2.rds")
-max.year<-2018
-min.spi <-1978
+max.spi.year<-2018
+min.spi.year <-1978
+
+
+
+# Modification ------------------------------------------------------------
+
+
+data.spread<-data.raw  %>% 
+  unite(New,Sensor,Statistics,sep="_") %>% 
+  spread(New,Value) %>% 
+  arrange(Date,SCODE) %>% 
+  group_by(SCODE,SCODE2) %>% 
+  nest
+
+data.spread.year<-data.spread %>% 
+  mutate(subtab=map(data,function(x){
+    
+    x %>% 
+      complete(Date=seq.Date(as.Date(paste0(min.spi.year,"-12-31")),
+                             as.Date(paste0(max.spi.year,"-12-31")),by="day")) %>% 
+      mutate(Month=month(Date)) %>% 
+      mutate(Year=year(Date)) %>% 
+      filter(Year<=max.spi.year) %>% 
+      filter(Year>=min.spi.year)
+  }))
+
+
+# Explore ------------------------------------------------------------
+
+# ** By Stations -----------------------------------------------------------
+
+
+
+
 
 # SPI Calculation --------------------------------------------------------------
 
 library("spi")
 library("precintcon")
 
-stats<-MonalisR::getMeteoInfo(format="spatial")
-coords<-sf::st_coordinates(stats)
-stats.coords<-bind_cols(SCODE=stats$SCODE,LON=coords[,1],LAT=coords[,2])
 
-d3<-data.raw  %>% 
-  unite(New,Sensor,Statistics,sep="_") %>% 
-  spread(New,Value) %>% 
-  arrange(Date,SCODE) %>% 
-  left_join(stats.coords,by="SCODE") %>% 
-  group_by(SCODE,SCODE2) %>% 
-  nest
-
-d4<-d3 %>% 
-  mutate(subtab=map(data,function(x){
-    
-    x %>% 
-      complete(Date=seq.Date(as.Date("1978-01-01"),
-                             as.Date(paste0(max.year,"-12-31")),by="day")) %>% 
-      mutate(Month=month(Date)) %>% 
-      mutate(Year=year(Date)) %>% 
-      filter(Year<=max.year) %>% 
-      filter(Year>=min.spi)
-  }))
-
-d.spi.raw<- d4 %>% 
+d.spi.raw<- data.spread.year %>% 
   mutate(subtab.spi=map(subtab,function(x){
     
     x %>% 
@@ -66,7 +76,9 @@ d.spi<-d.spi.raw %>%
   }))
 
 
-spitab<-read.table(file = "spitab.txt")
+spitab<-read.table(file = "spitab.txt",header = T,sep = ",") %>% 
+  as_tibble %>% 
+  mutate(Index=as.factor(Index))
 
 d.spi2<-d.spi %>% 
   select(SCODE,SPI1) %>% 
@@ -83,20 +95,23 @@ d.spi.scode<-d.spi2 %>%
   summarize(Mean=mean(spi),
             Max=max(spi),
             Min=min(spi)) %>% 
-  mutate(Severity=map_chr(Mean,function(x,t=spitab){
+  mutate(Severity=map(Mean,function(x,t=spitab){
     
-    ret<-as.character(t$Value[which(x>t$From & x<t$To)])
+    ret<-t[which(x>t$From & x<t$To),]
     return(ret)
     
-  })) %>% ungroup
+  })) %>% unnest %>% ungroup
 
 
-gg.spi<-ggplot(d.spi.scode,aes(Date,Mean,col=Mean))+ 
-  geom_line()+
-  geom_point()+
+gg.spi<-ggplot(d.spi.scode,aes(Date,Mean,fill=Severity))+ 
+  geom_bar(stat="identity")+
   scale_x_date(breaks = "2 months", labels=date_format("%Y-%m"))+
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))+
+  ylab("Mean SPI value")+
+  labs(title="Standard Precipitation Index across meteorological Stations in South Tyrol",
+       subtitle= "SPI since 2015 based on a 40 year Time Series on 54 Stations")
 
+gg.spi
 
 # Plot SPI
 
