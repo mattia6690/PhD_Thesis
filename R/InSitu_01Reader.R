@@ -5,31 +5,39 @@ source("R/BaseFunctions.R")
 
 lf_full<-list.files(dirstat,pattern =".csv",full.names = T)
 
+metadir.hyp<-"C:/Users/MRossi/Documents/03_Data/03_InSitu/05_HyperSpec/Combined/"
 # 3. Computation ----
 
 scale1 <- "Ground"
 names  <- c("Date","Station","Scale1","Scale2","Prop1","Prop2","Prop3","Value")
-suffix <- 240519
+suffix <- 070819
 
 for(i in 1:length(lf_full)){
   
   #* 3.1 Input ----
-  
-  print("Reading Files")
   itab_raw <-read_csv(lf_full[i],col_names = F,col_types = cols())
   itab<-.remheader(itab_raw)
   
   foi <-itab_raw %>% filter(X1=="FOI") %>% select(X2) %>% as.character
-  date.raw<-itab_raw %>% filter(X1=="Date") %>% select(X2) %>% as.character 
-  date<- date.raw %>% as.Date(format="%d%m%y")
+  date<-itab_raw %>% 
+    filter(X1=="Date") %>% 
+    select(X2) %>% 
+    as.numeric %>% 
+    sprintf("%06d",.) %>% 
+    as.Date(format="%d%m%y")
+  
+  print(paste("Files of",foi,"on",date,"read - Iteration=",i))
+  
+  idcols<-itab %>% select(contains("ID")) %>% colnames
   
   data.raw<-itab %>% 
-    gather(Prop1,Acquisition,ID1:ID4) %>% 
-    mutate(Acquisition=as.numeric(Acquisition)) %>% 
+    gather(Prop1,Acquisition,idcols)  %>% 
     add_column(Scale1=scale1,.before=T) %>%
     add_column(Station=foi,.before=T) %>%
     add_column(Date=date,.before=T)
   
+  
+  print("Starting Hyperspectral")
   #* 3.2 Hyperspectral ----
   
   #** Prepare ----
@@ -38,6 +46,7 @@ for(i in 1:length(lf_full)){
     add_column(Scale2=scale2,.after = "Scale1") %>% 
     filter(Type=="Hyperspectral")  %>% 
     filter(!is.na(Acquisition)) %>% 
+    mutate(Acquisition=as.numeric(Acquisition)) %>% 
     mutate(File=map2_chr(Acquisition, Date, function(x,y) {
       
       hdate<- format(y,"%m%d%y")
@@ -45,6 +54,11 @@ for(i in 1:length(lf_full)){
       
     })) %>% 
     mutate(Directory=dirhyp)
+  
+  ##** Check availability
+  
+  existance<-file.exists(paste0(hy.raw$Directory,hy.raw$File))
+  hy.raw<-hy.raw[which(existance==T),]
   
   #** Data  ----
   hy.data <- hy.raw %>% 
@@ -112,8 +126,8 @@ for(i in 1:length(lf_full)){
   NDVI_2 <-map_dbl(dt,function(x) hypindices(x,c(638,662),c(798,822),stat="NDVI"))
   NDVI_3 <-map_dbl(dt,function(x) hypindices(x,c(635,695),c(727,957),stat="NDVI"))
   
-  hy.index <- hy.data %>% 
-    mutate(PRI_1,PRI_2,NDVI_1,NDVI_2,NDVI_3) %>% 
+  hy.data.index <- hy.data %>% mutate(PRI_1,PRI_2,NDVI_1,NDVI_2,NDVI_3)
+  hy.index      <- hy.data.index %>% 
     gather(PRI_1,PRI_2,NDVI_1,NDVI_2,NDVI_3,key="Indices",value="Value") %>% 
     separate(col="Indices",into=c("Prop2","Prop3"),sep="_") %>% 
     select(-c(Data,Metadata))
@@ -124,15 +138,20 @@ for(i in 1:length(lf_full)){
     select(names)%>% 
     mutate(Value=as.character(Value))
   
+  
+  if(nrow(hy.data.index)>0) saveRDS(hy.data.index,file = paste0(metadir.hyp,foi,"_",format(date,"%Y%m%d"),".rds"))
+  
+  print("Starting LAI")
   #* 3.2 LAI ----
   
   #** Prepare ----
   scale2<-"Leaf Area"
+  date2<-format(date,"%d%m%y")
   lai.raw <- data.raw %>% 
     filter(Type==scale2)  %>% 
     filter(!is.na(Acquisition)) %>% 
     add_column(Scale2=scale2,.after = "Scale1") %>% 
-    mutate(File=map_chr(Acquisition,function(x) paste0(date.raw,"_",x,".csv"))) %>% 
+    mutate(File=map_chr(Acquisition,function(x) paste0(date2,"_",x,".csv"))) %>% 
     mutate(Directory=dirlai)
   
   #** Metrics ----
@@ -159,11 +178,16 @@ for(i in 1:length(lf_full)){
     }))
   
   #** Export ----
-  lai.final<-lai.data %>% 
-    unnest %>% 
-    select(names) %>% 
-    mutate(Value=as.character(Value))
+  if(nrow(lai.data)>0){
+    
+    lai.final<-lai.data %>% 
+      unnest %>% 
+      select(names) %>% 
+      mutate(Value=as.character(Value))
+    
+  }
   
+  print("Starting Biomass")
   #* 3.3 Biomass ----
   
   #** Prepare ----
@@ -173,6 +197,7 @@ for(i in 1:length(lf_full)){
     filter(Type==scale2) %>% 
     mutate(Prop2=prop2) %>% 
     add_column(Scale2=scale2,.after = "Scale1") %>% 
+    mutate(Acquisition=as.numeric(Acquisition)) %>% 
     group_by(Date,Station,Scale1,Scale2,Prop1,Prop2) %>% 
     nest
   
@@ -187,7 +212,7 @@ for(i in 1:length(lf_full)){
       Wet   <- v$W3 - v$T3
       Dry   <- v$W4 - v$T3
       Water <- round((1-(Dry/Wet))*100,2)
-      Error <- abs((v$W2 - v$T1) - (v$W3 - v$T3))
+      Error <- round(abs((v$W2 - v$T1) - (v$W3 - v$T3)),2)
       
       ret<-rbind(c("Wet",Wet),
             c("Dry",Dry),
