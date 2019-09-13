@@ -30,7 +30,7 @@ tbl.m2<-tbl.m1 %>%
   select(-param) %>% 
   separate(Sensor,c("Sensor","Statistics"),"_")
 
-saveRDS(tbl.m2,"C:/Users/MRossi/Documents/03_Data/03_InSitu/02_Province/Vinschgau_Mich_Stats.rds")
+saveRDS(tbl.m2,"C:/Users/MRossi/Documents/03_Data/03_InSitu/02_Province/Metrics_WhiskiOld.rds")
 rm(tbl.m1)
 
 
@@ -38,8 +38,15 @@ rm(tbl.m1)
 
 tbl.b1<-readRDS("C:/Users/MRossi/Documents/03_Data/03_InSitu/02_Province/Rossi_N_T_bound.rds")
 
-tbl.b2<-tbl.b1 %>% 
-  filter(Status==40) %>% 
+
+# Eliminate Unnecessary columns and check the Status
+tbl.b2  <- tbl.b1 %>% select(-c(LAYOUT,REXCHANGE,ZRXPCREATOR,ZRXPVERSION))
+
+whicher<-which(tbl.b2$Status==40)
+tbl.b2 <-slice(tbl.b2,whicher)
+rm(whicher)
+
+tbl.b2  <- tbl.b2 %>% 
   rename(SCODE=SANR) %>%
   mutate(SCODE2=substr(SCODE,1,4)) %>% 
   rename(Sensor=CNAME) %>% 
@@ -49,18 +56,21 @@ tbl.b2<-tbl.b1 %>%
   mutate(day=month(Date))
 
 tbl.bsel<- tbl.b2 %>% 
+  mutate(Source="WHISKI") %>% 
   group_by(SCODE,SCODE2,year,month,day,Date,Sensor) %>% 
   summarize(Sum=sum(Value),
-            Mean=mean(Value),
+            Mean=mean(Value,na.rm=T),
             Min=min(Value),
             Max=max(Value),
             Stdev=sd(Value)) %>% 
-  ungroup
+  ungroup 
 
-saveRDS(tbl.bsel,"C:/Users/MRossi/Documents/03_Data/03_InSitu/02_Province/Vinschgau_Bart_Stats_raw.rds")
+
+
+saveRDS(tbl.bsel,"C:/Users/MRossi/Documents/03_Data/03_InSitu/02_Province/Metrics_Whiski.rds")
 
 tbl.bstat<-tbl.bsel %>% gather(key="Statistics",value="Value",Mean,Max,Min,Sum,Stdev)
-saveRDS(tbl.bstat,"C:/Users/MRossi/Documents/03_Data/03_InSitu/02_Province/Vinschgau_Bart_Stats.rds")
+saveRDS(tbl.bsel,"C:/Users/MRossi/Documents/03_Data/03_InSitu/02_Province/Metrics_Whiski_Long.rds")
 
 
 # OpenData ----------------------------------------------------------------
@@ -103,10 +113,10 @@ tbl.o2<- tbl.o1 %>%
             Stdev=sd(Value),
             Sum=sum(Value)) %>% 
   ungroup()
-saveRDS(tbl.o2,"C:/Users/MRossi/Documents/03_Data/03_InSitu/02_Province/Vinschgau_OpenData_Stats_raw.rds")
+saveRDS(tbl.o2,"C:/Users/MRossi/Documents/03_Data/03_InSitu/02_Province/Metrics_OpenData.rds")
 
 tbl.o3<-tbl.o2 %>% gather(key="Statistics",value="Value",Mean,Max,Min,Sum,Stdev)
-saveRDS(tbl.o3,"C:/Users/MRossi/Documents/03_Data/03_InSitu/02_Province/Vinschgau_OpenData_Stats.rds")
+saveRDS(tbl.o3,"C:/Users/MRossi/Documents/03_Data/03_InSitu/02_Province/Metrics_Opendata_Long.rds")
 
 
 # Join Tables -------------------------------------------------------------
@@ -134,8 +144,8 @@ openda <- tbl.open %>%
 wiski2 <-left_join(tbl.bart,codes.join,by=c("SCODE","SCODE2")) %>% 
   select(Date,SCODE,SCODE2,Source,Sensor,Statistics,Value)
 
-bound<-rbind(wiski,openda,wiski2) %>% arrange(Date,SCODE2)
-bound2<-bound %>% filter(!is.na(SCODE))
+bound  <-rbind(wiski,openda,wiski2) %>% arrange(Date,SCODE2)
+bound2 <-bound %>% filter(!is.na(SCODE))
 
 saveRDS(bound2,"C:/Users/MRossi/Documents/03_Data/03_InSitu/02_Province/BoundData2.rds")
 
