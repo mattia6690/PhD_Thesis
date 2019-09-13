@@ -44,11 +44,11 @@ RemsenDir<- paste0(DataDir,"01_RemSen/")
   sentineldir<-paste0(RemsenDir,"Sentinel/")
 PhenocamDir<- paste0(DataDir,"02_PhenoCam/")
 InSitu_dir<-paste0(DataDir,"03_InSitu/")
-  dirlai<-paste0(InSitu_dir,"04_LAI/")
-  dirhyp<-paste0(InSitu_dir,"05_HyperSpec/2017/")
-  dirgps<-paste0(InSitu_dir,"06_GPS/")
-  dirfield<-paste0(InSitu_dir,"07_FieldCampaign17/")
-  dirstat<-paste0(InSitu_dir,"07_FieldCampaign17/00_Raw/")
+  dirfield<-paste0(InSitu_dir,"04_FieldCampaign/")
+  dirlai<-paste0(InSitu_dir,"04a_LAI/")
+  dirhyp<-paste0(InSitu_dir,"04b_Spectrometer/")
+  dirbio<-paste0(InSitu_dir,"04c_Biomass/")
+  dirgps<-paste0(InSitu_dir,"04d_GPS/")
 MonalisaDir<-paste0(DataDir,"04_MONALISA/")
 Monalisa17Dir<-paste0(DataDir,"04a_MONALISA17/")
 ProviceDir<- paste0(DataDir,"05_Province/")
@@ -171,6 +171,192 @@ hypindices<-function(input,wavel1,wavel2,stat="NDVI"){
   if(stat=="PRI")  hyp <- round((hyp1-hyp2)/(hyp1+hyp2),3)
   if(stat=="NDVI") hyp <- round((hyp2-hyp1)/(hyp2+hyp1),3)
   return(hyp)
+  
+}
+
+
+
+# Get hyperspectral Data
+getVals.spectrometer<-function(data,date,directory,verbose=F,addGPS=T){
+  
+  # Prepare
+  
+  scale2<-"Spectrometer"
+  hy.raw <- data.raw %>% 
+    add_column(Scale2=scale2,.after = "Scale1") %>% 
+    filter(Type=="Hyperspectral")  %>% 
+    filter(!is.na(Acquisition)) %>% 
+    mutate(Acquisition=as.numeric(Acquisition)) %>% 
+    mutate(File=map2_chr(Acquisition, Date, function(x,y) {
+      
+      hdate<- format(y,"%m%d%y")
+      ret  <- paste("HRPDA",hdate,sprintf("%04d",x),"sig",sep=".")
+      
+    })) %>% 
+    mutate(Directory=paste0(dirhyp,"01_Raw/",year(date),"/"))
+  
+  if(verbose==T) print(paste("A total of",nrow(hy.raw),"Spectrometers measured"))
+  # Availability
+  
+  existance<-file.exists(paste0(hy.raw$Directory,hy.raw$File))
+  hy.raw<-hy.raw[which(existance==T),]
+  
+  if(verbose==T) print(paste("A total of",nrow(hy.raw),"Spectrometers available"))
+  
+  hy.data <- hy.raw %>% 
+    mutate(RawData=map2(Directory,File,function(x,y){
+      
+      fname<-paste0(x,y)
+      t<-read_table(fname,col_types = cols("/*** Spectra Vista SIG Data ***/" = col_character()))
+      colnames(t)<-"data"
+      t1<-tidyr::separate(t,data,c("Key","Values"),"=")
+      
+      return(t1)
+      
+    })) %>% 
+    mutate(Metadata=map(RawData,function(x) {
+      
+      y<-x %>% dplyr::filter(!is.na(Values))
+      return(y)
+      
+    })) %>% 
+    mutate(Data=map(RawData,function(x){
+      
+      y<- x %>% 
+        dplyr::filter(is.na(Values)) %>% 
+        select(-Values) %>% 
+        separate(.,col="Key", into=c("Wavel","Rup","Rdn","Refl"),sep="  ") %>% 
+        mutate_all(as.numeric)
+      return(y)
+      
+    })) %>% select(-RawData)
+  
+  #** Add GPS Information
+  if(addGPS==T){
+    
+    hy.data<- hy.data %>% 
+      mutate(Location=map(Metadata,function(x){
+        
+        Lat <- x %>% 
+          filter(Key=="latitude") %>% 
+          select(Values) %>% 
+          str_replace_all("N","") %>%  
+          str_split(",") %>% 
+          unlist %>% 
+          as.numeric %>% 
+          mean(na.rm=T) %>% "/" (100)
+        Lon <- x %>% 
+          filter(Key=="longitude") %>% 
+          select(Values) %>% 
+          str_replace_all("E","") %>%  
+          str_split(",") %>% 
+          unlist %>% 
+          as.numeric %>% 
+          mean(na.rm=T) %>% "/" (100)
+        
+        LatLon<-bind_cols(Lat=Lat,Lon=Lon)
+        
+        return(LatLon)
+        
+      })) %>% unnest(Location)
+    
+  }
+  return(hy.data)
+}
+
+# Get LAI Data
+getVals.LAI<-function(data,date,directory,verbose=F){
+  
+  # Prepare the Values
+  scale2<-"Leaf Area"
+  date2<-format(date,"%d%m%y")
+  lai.raw <- data %>% 
+    filter(Type==scale2)  %>% 
+    filter(!is.na(Acquisition)) %>% 
+    add_column(Scale2=scale2,.after = "Scale1") %>% 
+    mutate(File=map_chr(Acquisition,function(x) paste0(date2,"_",x,".csv"))) %>% 
+    mutate(Directory=paste0(directory,"01b_Renamed/"))
+  
+  # Extract and add the Values
+  lai.data <- lai.raw %>% 
+    mutate(Data=pmap(.,function(Directory,File,...){
+      
+      Prop2  <-c("Meta","Metrics","GPS")
+      Meta   <-c("LAI_FILE","VERSION","DATE")
+      Metrics<-c("LAI","SEL","ACF","DIFN","MTA","SEM","SMP")
+      GPS    <-c("GPSLAT","GPSLONG")
+      rd     <-suppressMessages(read_csv(paste0(Directory,"/",File)))
+      
+      rd1<-rd %>% filter(V1 %in% Meta) %>% select(V1,V2) %>% setNames(c("Prop3","Value")) %>% 
+        mutate(Prop2=Prop2[1])
+      rd2<-rd %>% filter(V1 %in% Metrics) %>% select(V1,V2) %>% setNames(c("Prop3","Value"))%>% 
+        mutate(Prop2=Prop2[2])
+      rd3<-rd %>% filter(V1 %in% GPS) %>% select(V1,V2) %>% setNames(c("Prop3","Value"))%>% 
+        mutate(Prop2=Prop2[3])
+      
+      ret<-rbind(rd1,rd2,rd3)
+      return(ret)
+      
+    }))
+  
+  # Combine the values
+  if(nrow(lai.data)>0){
+    
+    lai.final<-lai.data %>% 
+      unnest %>% 
+      select(names) %>% 
+      mutate(Value=as.character(Value))
+    return(lai.final)
+    
+  } else { return(lai.data)}
+}
+
+# Get Biomass Data
+getVals.biomass<-function(data,date,directory,verbose=F){
+  
+  #Prepare
+  scale2<-"Biomass"
+  prop2 <-"Phytomass"
+  bio.raw <- data.raw %>% 
+    filter(Type==scale2) %>% 
+    mutate(Prop2=prop2) %>% 
+    add_column(Scale2=scale2,.after = "Scale1") %>% 
+    mutate(Acquisition=as.numeric(Acquisition)) %>% 
+    group_by(Date,Station,Scale1,Scale2,Prop1,Prop2) %>% 
+    nest
+  
+  #Calculate Metrix
+  bio.data <- bio.raw %>% 
+    mutate(Metrics=map(data,function(x){
+      
+      v<- mutate(x,Name=substr(Name,1,2)) %>% spread(Name,Acquisition)
+      
+      if(is.na(v$W2)) v$W2 <- v$W1
+      
+      Wet   <- v$W3 - v$T3
+      Dry   <- v$W4 - v$T3
+      Water <- round((1-(Dry/Wet))*100,2)
+      Error <- round(abs((v$W2 - v$T1) - (v$W3 - v$T3)),2)
+      
+      ret<-rbind(c("Wet",Wet),
+                 c("Dry",Dry),
+                 c("Water Percentage",Water),
+                 c("Error",Error)) %>% 
+        as_tibble(.) %>% 
+        setNames(c("Prop3","Value")) %>% 
+        mutate(Values=as.character(Value))
+    }))
+  
+  #Combine Metrics
+  bio.final<- bio.data %>% 
+    select(-data) %>% 
+    unnest %>% 
+    select(Date,Station,Scale1,Scale2,Prop1,Prop2,Prop3,Value) %>% 
+    arrange(Date,Station) %>% 
+    mutate(Value=as.character(Value))
+  
+  return(bio.final)
+  
   
 }
 
@@ -452,14 +638,14 @@ ccf_fun<-function(df,y1,y2) {
   
 }
 
-# Link the Locations
-loclink2<-map(stations,function(x) {
-  cbind.data.frame(x,
-                   c("ID1","ID2","ID3","ID4"),
-                   c(paste0(x,"_A"),paste0(x,"_B"),paste0(x,"_C"),paste0(x,"_D")))
-}) %>% 
-  do.call(rbind,.) %>% 
-  setNames(c("Station","OP1","ROI")) %>% 
-  add_column(Date=NA,.before=T) %>% as.tibble
+# # Link the Locations
+# loclink2<-map(stations,function(x) {
+#   cbind.data.frame(x,
+#                    c("ID1","ID2","ID3","ID4"),
+#                    c(paste0(x,"_A"),paste0(x,"_B"),paste0(x,"_C"),paste0(x,"_D")))
+# }) %>% 
+#   do.call(rbind,.) %>% 
+#   setNames(c("Station","OP1","ROI")) %>% 
+#   add_column(Date=NA,.before=T) %>% as.tibble
 
 
