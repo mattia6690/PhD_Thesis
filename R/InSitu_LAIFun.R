@@ -4,14 +4,14 @@ source("R/BaseFunctions.R")
 
 # 2. Input ----
 
-lai.dir.in <-dirlai %>% paste0("Raw1/")
-lai.dir.out<-dirlai %>% paste0("/")
+lai.dir.in <-paste0(dirlai,"01_Raw/")
+lai.dir.out<-paste0(dirlai,"01b_Renamed/")
 
 
 # Rename the LAI files and move to new direcory
 LAIrename<- function(indir,outdir){
   
-  lf<- list.files(lai.dir.in,full.names = T)
+  lf<- list.files(lai.dir.in,full.names = T,recursive = T)
   
   # 3. Process ----
   
@@ -34,7 +34,7 @@ LAIrename<- function(indir,outdir){
     date<-paste(strsplit(date, '', fixed=T)[[1]][c(7,8,5,6,3,4)], collapse='')
     
     name<-itab1 %>% filter(V1=="LAI_FILE") %>% select(V2) %>% as.matrix %>% as.character %>% str_split(pattern="-") 
-    namel<-unlist(str_split(name,pattern="-"))
+    namel<-unlist(name)
     if(length(namel)>1){name<-namel[length(namel)]}
     
     nameout<-paste(date,name,sep="_")

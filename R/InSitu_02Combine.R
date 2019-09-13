@@ -71,3 +71,69 @@ insitu.raw.bio<-lj1 %>%
 
 if(write.outputs==T) write.RDSCSV(insitu.raw.bio,paste0(Workspacedir,"07_Products/InSituBiomass2017"))
 
+
+
+
+# Paper 2 -----------------------------------------------------------------
+# Load Datasets -----------------------------------------------------------
+tablespec  <- list.files(paste0(dirhyp,"02_Combined/"),full.names = T,pattern = "rds")
+tablespec2 <- bind_rows(lapply(tablespec,readRDS))
+tablespec3 <- dplyr::select(tablespec2,Date,Station,Scale1,Scale2,Prop1,Prop2,Prop3,Value)
+
+tablelai   <- list.files(paste0(dirlai,"02_Combined/"),full.names = T,pattern = "rds")
+tablelai2  <- bind_rows(lapply(tablelai,readRDS))
+tablelai3  <- dplyr::select(tablelai2,Date,Station,Scale1,Scale2,Prop1,Prop2,Prop3,Value) %>% 
+  filter(Prop2=="Metrics") %>% 
+  mutate(Value=as.numeric(Value))
+
+tablebio   <- list.files(paste0(dirbio,"02_Combined/"),full.names = T,pattern = "rds")
+tablebio2  <- bind_rows(lapply(tablebio,readRDS))
+tablebio3  <- dplyr::select(tablebio2,Date,Station,Scale1,Scale2,Prop1,Prop2,Prop3,Value) %>% 
+  mutate(Value=as.numeric(Value))
+
+tableall   <- bind_rows(tablespec3,tablelai3,tablebio3)
+
+
+# Plot Bio and LAI --------------------------------------------------------
+
+
+Harvests<-rbind(c("Vimes1500","2017",yday(as_date("2017-07-03"))),
+                c("Vimes1500","2018",yday(as_date("2018-06-23")))) %>% 
+  as_tibble %>% 
+  setNames(c("Station","Harvest","DOY")) %>% 
+  mutate(DOY=as.numeric(DOY))
+
+intervals<-c("2017-01-01" %--% "2017-07-03",
+             "2018-01-01" %--% "2018-06-23")
+
+
+plotdat<-tableall %>%
+  filter(Station=="Vimes1500" | Station=="P2") %>% 
+  filter((Scale2=="Biomass" & Prop3!="Error") | (Scale2=="Leaf Area" & Prop3=="LAI")) %>% 
+  mutate(Tit=paste(Scale2,"-",Prop3))
+
+plotdat2<-plotdat %>% 
+  group_by(Station,Date,Scale1,Scale2,Prop3,Tit) %>% 
+  dplyr::summarize(Median=median(Value,na.rm = T)) %>% 
+  ungroup %>% 
+  mutate(GrowingPeriod= ifelse(Date %within% intervals[1],"2017-Grow1",
+                               ifelse(Date %within% intervals[2],"2018-Grow1",0))) %>% 
+  mutate(DOY=yday(Date))
+
+
+plotdat2.grow1<-plotdat2 %>% filter(GrowingPeriod!=0)
+
+
+pdu<-plotdat2.grow1$Tit %>% unique
+Harvests<-tidyr::crossing(Harvests,Tit=pdu)
+
+g1<-ggplot(plotdat2.grow1,aes(DOY,Median,col=GrowingPeriod,pch=GrowingPeriod))+ theme_bw() +
+  scale_color_manual(values=c("grey70","black"))+
+  facet_wrap(Station~Tit,scales="free_y",ncol=4)+
+  geom_point()+
+  geom_line()+
+  geom_vline(data=Harvests,aes(xintercept=DOY,lty=Harvest))+
+  labs(title="Biomass sampling during the first growing period in 2017 and 2018")+ 
+  theme(legend.position="bottom")
+
+ggsave(g1,filename = "Paper2/BomassLAIplot1.png",width=12,height=7)
