@@ -7,12 +7,12 @@ library(broom)
 library(forecast)
 
 stations<-c("Domef1500","Domef2000","Vimef2000","Vimes1500")
-suffix<-"110119"
+suffix<-"161019"
 
 db<-readRDS(paste0(MetricsDir,"AllSensorData",suffix,".rds"))
 db.all<-readRDS(paste0(MetricsDir,"AllSensorData",suffix,"_filtered.rds"))
 db.mean<-readRDS(paste0(MetricsDir,"AllSensorData",suffix,"_meanDay.rds"))
-gapfill.db<-readRDS(paste0(MetricsDir,"AllSensorData",suffix,"_gapFill.rds"))
+gapfill.db<-readRDS(paste0(MetricsDir,"02_Gapfill/AllSensorData",suffix,"_gapFill.rds"))
 
 Manage.Site<-readRDS(paste0(DataDir,"/Management/Management_2017_complete.rds"))
 Manage.Plot<-readRDS(paste0(DataDir,"/Management/Management_2017_plot.rds"))
@@ -510,6 +510,15 @@ br<-colorRampPalette(c("darkgreen","green","orange","brown"))(100)
 maxgap<-6
 gp1<-gapfill.db %>% filter(Date>="2017-02-01"& Date<="2017-12-01")
 
+# Test
+# x <-gp1$Date[10]
+# y <-gp1$Station[1]
+# yy<-gp1$Plot[1]
+# z <-gp1$Sensor[1]
+# g=gp1
+# l=maxgap
+
+
 Manage.all.coefs<-gp1 %>% 
   mutate(coefs=pmap(list(Date,Station,Plot,Sensor),function(x,y,yy,z,g=gp1,l=maxgap){
     
@@ -689,13 +698,98 @@ g1<-ggplot(ManageList3,aes(x=DOY,y=Normalized))+ theme_bw()+
   geom_line(data=grp2,aes(x=DOY,y=Normalized),col="blue")+
   facet_grid(vars(Sensor),vars(Station),scales="free")+
   scale_colour_gradientn("Dates",colours=br, labels=as.Date)+
-  ggtitle(paste("Normalized Spectral Changes in",maxgap,"days moving Window"))+
+  ggtitle(paste("NDVI Dynamics in a",maxgap,"days moving Window for 2017"))+
   geom_vline(data=Managements,aes(xintercept=DOY,linetype=Event))+
   scale_linetype_manual("Events",values=c("Harvest"="solid","Snow"="dotted"))+
   theme(legend.position="none")+
-  ylab("Normalized Difference linear coefficients and NDVI")+
+  ylab("NDVI Dynamics")+
   xlim(c(90,300))
 
+ggsave(g1,filename = "Images/ManagementDetection_normalized2.png",device = "png")
+
+
+
+# GetPeaks ----------------------------------------------------------------
+
+quantiles<-20
+seq<-seq(0,1,1/quantiles)
+br<-colorRampPalette(c("darkgreen","green","orange","brown"))(quantiles)
+
+times<-grp2 %>% 
+  group_by(Station,Sensor) %>% 
+  nest %>% 
+  mutate(Stat=map(data,function(x){
+    
+    q<-quantile(x$Normalized,seq)
+    
+    ind<- map_dbl(x$Normalized,function(m) {
+      r<-min(which(m<q))
+      if(is.infinite(r)) r<-length(q)
+      return(r)
+      
+      })
+    x$quantile<-ind
+    
+    return(x)
+    
+    
+   }))
+
+
+grp2.quan<- times %>% select(-data) %>% unnest
+grp2.quan2<-grp2.quan %>% mutate(Q2=map_dbl(quantile,function(x,s=seq) s[x]))
+
+g1<-ggplot(ManageList3,aes(x=DOY,y=Normalized))+ theme_bw()+
+  geom_point(pch=1,col="grey")+
+  geom_line(data=grp2.quan2,aes(x=DOY,y=Normalized,col=Q2))+
+  facet_grid(vars(Sensor),vars(Station),scales="free")+
+  scale_colour_gradientn("Distibution \n Quantiles",colours=br)+
+  ggtitle(paste("NDVI Dynamics in a",maxgap,"days moving Window for 2017"))+
+  geom_vline(data=Managements,aes(xintercept=DOY,linetype=Event))+
+  scale_linetype_manual("Events",values=c("Harvest"="solid","Snow"="dotted"))+
+  ylab("NDVI Dynamics")+
+  xlim(c(90,300))
+
+ggsave(g1,filename = "Images/ManagementDetection_normalized_quantiles2.png",device = "png",height=8,width=10)
+
+
+# Join them 
+
+uno <-dplyr::left_join(Managements,grp2.quan2,by=c("Station","DOY"))
+
+
+
+uno2<-dplyr::filter(uno,!is.na(Q2))
+
+
+uno3<-uno2 %>% select(Station,DOY,Event,Sensor,Q2)
+uno.spread<- uno3 %>%  tidyr::spread(Sensor,Q2)
+
+saveRDS(uno.spread,file = paste("rds/uno.spread.rds"))
+
+g1<-ggplot(uno2,aes(DOY,Q2,pch=Sensor,lty=Station))+
+  geom_point()+
+  geom_line()+
+  facet_wrap(.~Event)
+
+# 4 domef
+
+gr.domef<-grp2.quan %>% filter(Station=="Domef1500")
+ManageList.domef<-ManageList3 %>% filter(Station=="Domef1500")
+Managements.domef<-Managements %>% filter(Station=="Domef1500")
+
+g1<-ggplot(ManageList.domef,aes(x=DOY,y=Normalized))+ theme_bw()+
+  geom_point(pch=1,col="grey")+
+  geom_line(data=gr.domef,aes(x=DOY,y=Normalized,col=quantile))+
+  facet_wrap(.~Sensor)+
+  scale_colour_gradientn("Distibution \n Quantiles",colours=br)+
+  ggtitle(paste("Normalized Changes in NDVI signal: ",maxgap,"days moving Window"))+
+  geom_vline(data=Managements.domef,aes(xintercept=DOY,linetype=Event))+
+  scale_linetype_manual("Events",values=c("Harvest"="solid","Snow"="dotted"))+
+  ylab("Normalized Difference in linear coefficients and mean NDVI")+
+  xlim(c(90,300))
+
+ggsave(g1,filename = "Images/ManagementDetection_normalized_quantiles_domef.png",device = "png")
 
 # PCA --------------------------------------------------------
 
