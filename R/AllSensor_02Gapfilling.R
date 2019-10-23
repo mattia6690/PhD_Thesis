@@ -4,6 +4,7 @@ source("R/BaseFunctions.R")
 library("xts")
 
 suffix<-"110119"
+suffix.out<- "161019"
 subfolder<-"01_Combination"
 indir<-paste0(MetricsDir,subfolder,"/")
 
@@ -44,4 +45,4 @@ gapfill.db<-gpdb.ts %>%
 # wh<-which(gapfill.db$Station=="Vimes1500" & gapfill.db$Date>"2017-07-03" & gapfill.db$Date<"2017-07-17")
 # gapfill.db<-slice(gapfill.db,-wh)
 
-saveRDS(gapfill.db,file = paste0(outdir,"AllSensorData",suffix,"_gapFill.rds"))
+saveRDS(gapfill.db,file = paste0(outdir,"AllSensorData",suffix.out,"_gapFill.rds"))
