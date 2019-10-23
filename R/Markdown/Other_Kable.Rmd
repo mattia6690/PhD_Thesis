@@ -69,3 +69,50 @@ if(asimage==T){
 }
 
 ```
+
+
+```{r}
+
+rds<-readRDS(paste("../../rds/uno.spread.rds"))
+
+pal.fnc = colorRamp(c("red", "yellow", "green"))
+max.val<-1
+
+rds<-rds %>% mutate(DOY=as.character(DOY)) %>% 
+  rename(Combined=COMBINED) %>% 
+  rename(SRS=Decagon_SRS) %>% 
+  rename("Sentinel 2"=Sentinel2_MSI)
+
+d = rds %>%
+    mutate_if(is.numeric, function(x) {
+  cell_spec(round(x,1), "latex", bold = F, color=grey(.3),
+            background = rgb(pal.fnc(x/max.val) %>% replace(., is.na(.), 200), maxColorValue=255))
+}) 
+
+# Make 2 Columns
+
+f1<-d %>% filter(Station=="Domef1500" | Station=="Domef2000")
+f2<-d %>% filter(Station=="Vimef2000" | Station=="Vimes1500")
+
+
+kheatL<-kable(f1, format ="latex", linesep="",booktabs = T,escape = F ,align = "c") %>% 
+  kable_styling(latex_options = "scale_down") %>% 
+  collapse_rows(1:2,row_group_label_position = "stack") %>% 
+  add_header_above(c(" "=3,"Sensors"=4),align="c")
+
+
+kheatR<-kable(f2, format ="latex", linesep="",booktabs = T,escape = F ,align = "c") %>% 
+  kable_styling(latex_options = "scale_down") %>% 
+  collapse_rows(1:2,row_group_label_position = "stack") %>% 
+  add_header_above(c(" "=3,"Sensors"=4),align="c")
+
+kableExtra::kable_as_image(kheatL, filename = "HeatmapL")
+kableExtra::kable_as_image(kheatR, filename = "HeatmapR")
+
+kableExtra::kable_as_image(cbind(kheatL,kheatR), filename = "HeatmapA")
+
+```
+
+
+
+
