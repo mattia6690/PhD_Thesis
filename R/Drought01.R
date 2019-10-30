@@ -14,10 +14,11 @@ library("stringr")
 # Import  -------------------------------------------------------------
 
 data.raw<-readRDS("C:/Users/MRossi/Documents/03_Data/03_InSitu/02_Province/BoundData2.rds")
-max.spi.year<-2018
+max.spi.year <-2018
 min.spi.year <-1978
 
 # Modification ------------------------------------------------------------
+
 
 data.raw2 <-data.raw %>% 
   group_by(Date,SCODE,SCODE2,Sensor,Statistics) %>% 
@@ -46,14 +47,67 @@ data.spread.year<-data.spread %>%
 
 
 # Explore ------------------------------------------------------------
-
-# ** By Stations -----------------------------------------------------------
-
+# * By Stations -----------------------------------------------------------
 
 
+data<-data.spread.year %>% 
+  filter(SCODE=="02500MS") %>% 
+  select(-data) %>% 
+  unnest %>% 
+  mutate(Month=month(Date))
+
+alldata<- data %>% 
+  group_by(SCODE,Year,Month) %>% 
+  dplyr::summarize(LT_Mean=mean(LT_Mean),N_Sum=sum(N_Sum)) %>% 
+  ungroup %>% 
+  gather("Variable",value="value","LT_Mean","N_Sum")
 
 
-# SPI Calculation --------------------------------------------------------------
+data17<- data %>% 
+  filter(Year=="2017") %>% 
+  group_by(SCODE,Year,Month) %>% 
+  dplyr::summarize(LT_Mean=mean(LT_Mean),N_Sum=sum(N_Sum)) %>% 
+  ungroup %>% 
+  mutate(Year=as.character(Year))
+
+data18<- data %>% 
+  filter(Year=="2018") %>% 
+  group_by(SCODE,Year,Month) %>% 
+  dplyr::summarize(LT_Mean=mean(LT_Mean),N_Sum=sum(N_Sum)) %>% 
+  ungroup %>% 
+  mutate(Year=as.character(Year))
+
+
+rtemp<- rbind(alldata,data17,data18)
+
+alldata.tidy<-alldata
+
+colsN<-colorRampPalette(c("lightblue1","lightblue4"))(41)
+colsT<-colorRampPalette(c("sienna1","sienna4"))(41)
+
+gtemp<-ggplot()+ theme_minimal()+
+  geom_line(data=alldata,aes(Month,LT_Mean,col=as.character(Year)),alpha=0.3,show.legend = F)+
+  geom_line(data=rtemp,aes(Month,LT_Mean,lty=Year),show.legend = F)+
+  geom_point(data=rtemp,aes(Month,LT_Mean,pch=Year),show.legend = F)+
+  scale_color_manual(values = colsT)+
+  scale_x_continuous(breaks=seq(1,12,1),minor_breaks = NULL)+
+  scale_y_continuous(breaks=seq(-10,20,5))+
+  ylab("Mean Temperature (°C)")
+
+gns<-ggplot()+ theme_minimal()+
+  geom_line(data=alldata,aes(Month,N_Sum,col=as.character(Year)),alpha=0.3,show.legend = F)+
+  geom_line(data=rtemp,aes(Month,N_Sum,lty=Year))+
+  geom_point(data=rtemp,aes(Month,N_Sum,pch=Year))+
+  scale_color_manual(values = colsN)+
+  scale_x_continuous(breaks=seq(1,12,1),minor_breaks = NULL)+
+  scale_y_continuous(breaks=seq(0,300,50))+
+  ylab("Sum of Precipitation (mm)")
+
+ga<-grid.arrange(gtemp,gns,nrow=1)
+
+ggsave(plot = ga,filename = "Images/ClimateVinschgau.png",device = "png",width = 12,height = 5)
+
+# **SPI Calculation --------------------------------------------------------------
 
 library("spi")
 library("precintcon")
@@ -88,7 +142,7 @@ spitab<-read.table(file = "spitab.txt",header = T,sep = " ") %>%
 d.spi2<-d.spi %>% 
   mutate(GG=map2(SCODE,SPI1,function(x,y){
     
-    gg.spi<-ggplot(d.spi.scode,aes(y$Date,y$SPI,fill=Value))+ 
+    gg.spi<-ggplot(y,aes(y$Date,y$SPI,fill=Value))+ 
       geom_bar(stat="identity")+
       scale_x_date(breaks = "2 months", labels=date_format("%Y-%m"))+
       theme(axis.text.x = element_text(angle = 45, hjust = 1))+
@@ -148,7 +202,7 @@ g1<-ggplot(spi.trans,aes(Date,spi))+
 g2<-g1 +
   scale_x_date(limits=c(as.Date("2010-01-01"),as.Date("2018-12-31")))
 
-# PDSI Calculation --------------------------------------------------------
+# SPEI Calculation --------------------------------------------------------
 
 library("scPDSI")
 library("SPEI")
