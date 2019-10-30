@@ -10,7 +10,7 @@ metadir.hyp<-"C:/Users/MRossi/Documents/03_Data/03_InSitu/05_HyperSpec/Combined/
 
 scale1 <- "Ground"
 names  <- c("Date","Station","Scale1","Scale2","Prop1","Prop2","Prop3","Value")
-suffix <- 260819
+suffix <- 251019
 
 for(i in 1:length(lf_full)){
   
@@ -35,12 +35,10 @@ for(i in 1:length(lf_full)){
   print(paste("Files of",foi,"on",date,"read - Iteration=",i))
   
   #* 3.2 Hyperspectral ----
-  #** Data  ----
   
   print("Hyperspectral metrics")
   hy.data<-getVals.spectrometer(data.raw,date,dirhyp)
   
-  #** Indices ----
 
   if(nrow(hy.data)>0){
     
@@ -51,27 +49,30 @@ for(i in 1:length(lf_full)){
     NDVI_2 <-map_dbl(dt,function(x) hypindices(x,c(638,662),c(798,822),stat="NDVI"))
     NDVI_3 <-map_dbl(dt,function(x) hypindices(x,c(635,695),c(727,957),stat="NDVI"))
     
-    hy.data.index <- hy.data %>% mutate(PRI_1,PRI_2,NDVI_1,NDVI_2,NDVI_3)%>% 
+    hy.data.index <- hy.data %>% 
+      mutate(PRI_1,PRI_2,NDVI_1,NDVI_2,NDVI_3)%>% 
       gather(PRI_1,PRI_2,NDVI_1,NDVI_2,NDVI_3,key="Indices",value="Value") %>% 
       separate(col="Indices",into=c("Prop2","Prop3"),sep="_")
     
+    hy.data.index<- hy.data.index %>% 
+      dplyr::select(Date,Station,Scale1,Scale2,Prop1,Prop2,Prop3,Value)
+    
     if(nrow(hy.data.index)>0) saveRDS(hy.data.index,file = paste0(dirhyp,"02_Combined/",foi,"_",format(date,"%Y%m%d"),".rds"))
+    
   }
-
   
   #* 3.2 LAI ----
-  
   print("Calculating LAI")
-  lai.data<-getVals.LAI(data.raw,date,directory = dirlai)
-  if(nrow(hy.data.index)>0) saveRDS(lai.data,file = paste0(dirlai,"02_Combined/",foi,"_",format(date,"%Y%m%d"),".rds"))
-  
+  lai.data<-getVals.lai(data.raw,date,directory = dirlai)
   
   #* 3.3 Biomass ----
-  
   print("Calculating Biomass")
-  bio.data<-getVals.Biomass(data.raw,date)
-  if(nrow(hy.data.index)>0) saveRDS(bio.data,file = paste0(dirbio,"02_Combined/",foi,"_",format(date,"%Y%m%d"),".rds"))
+  bio.data<-getVals.biomass(data.raw,date)
 
+  # Save the data
+  if(nrow(lai.data)>0) saveRDS(lai.data,file = paste0(dirlai,"02_Combined/",foi,"_",format(date,"%Y%m%d"),".rds"))
+  if(nrow(bio.data)>0) saveRDS(bio.data,file = paste0(dirbio,"02_Combined/",foi,"_",format(date,"%Y%m%d"),".rds"))
+  
 }
 
 
