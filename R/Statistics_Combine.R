@@ -744,10 +744,10 @@ g1<-ggplot(ManageList3,aes(x=DOY,y=Normalized))+ theme_bw()+
   geom_line(data=grp2.quan2,aes(x=DOY,y=Normalized,col=Q2))+
   facet_grid(vars(Sensor),vars(Station),scales="free")+
   scale_colour_gradientn("Spline\nDistribution\nQuantiles",colours=br)+
-  ggtitle(paste("NDVI Dynamics in a",maxgap,"days moving Window for 2017"))+
+  ggtitle(paste("Normalized NDVI Dynamics in a",maxgap,"days moving window for 2017"))+
   geom_vline(data=Managements,aes(xintercept=DOY,linetype=Event))+
   scale_linetype_manual("Events",values=c("Harvest"="solid","Snow"="dotted"))+
-  ylab("NDVI Dynamics")+
+  ylab("Normalized NDVI Dynamics")+
   xlim(c(90,300))
 
 ggsave(g1,filename = "Images/ManagementDetection_normalized_quantiles2.png",device = "png",height=7,width=10)
