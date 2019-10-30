@@ -4,9 +4,12 @@
 .RData
 .Ruserdata
 /Images
+/Paper2
 R/Old
-R/Markdown/Kable_cache
+R/Markdown/
 R/04_Other/
 Presentation/
+rds/
+tables/
 Thumbs.db
 
