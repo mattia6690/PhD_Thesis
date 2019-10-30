@@ -113,6 +113,40 @@ kableExtra::kable_as_image(cbind(kheatL,kheatR), filename = "HeatmapA")
 
 ```
 
+Kable of the Spitab
+
+```{r}
+library(gplots)
+
+spitab<-read.table(file = "../../spitab2.txt",header = T,sep = " ") %>% 
+  as_tibble %>% 
+  mutate(Index=as.factor(c(1:nrow(.))))
+
+cols<- as.character(spitab$Color)
+cols.hx<-col2hex(cols)
+
+spitab<-spitab %>% 
+  mutate(C2=map2_chr(rep("",nrow(.)),Color,function(x,y){
+    
+    cell_spec(x, "latex", bold = F, color=grey(.3),background = col2hex(y))
+    
+  }))
+
+spitab2<- select(spitab, "SPI Regime"=Value,
+         From,To,
+         "Probability of\nEvent"=Probability,
+         "Occurrence in\n100 years"=Frequency,
+         Color=C2)
+
+k1<-kable(spitab2,"latex",booktabs=T,align="c",linesep="",escape=F) %>% 
+  kable_styling(latex_options = "scale_down") %>% 
+  add_header_above(c(" "=1,"SPI Value Range"=2),align="c",) %>% 
+  column_spec(c(1,4:5), width = "3cm")
+
+kableExtra::kable_as_image(k1, filename = "Test")
+
+
+```
 
 
 
