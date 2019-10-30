@@ -265,7 +265,7 @@ getVals.spectrometer<-function(data,date,directory,verbose=F,addGPS=T){
 }
 
 # Get LAI Data
-getVals.LAI<-function(data,date,directory,verbose=F){
+getVals.lai<-function(data,date,directory,verbose=F){
   
   # Prepare the Values
   scale2<-"Leaf Area"
@@ -329,7 +329,7 @@ getVals.biomass<-function(data,date,directory,verbose=F){
   bio.data <- bio.raw %>% 
     mutate(Metrics=map(data,function(x){
       
-      v<- mutate(x,Name=substr(Name,1,2)) %>% spread(Name,Acquisition)
+      v<- x %>% mutate(Name=substr(Name,1,2)) %>% tidyr::spread(Name,Acquisition)
       
       if(is.na(v$W2)) v$W2 <- v$W1
       
