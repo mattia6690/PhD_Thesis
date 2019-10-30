@@ -15,6 +15,7 @@ library("stringr")
 library("GADMTools")
 library("tmap")
 library("tmaptools")
+library("sf")
 
 
 source("R/Drought_functions.R")
@@ -34,7 +35,7 @@ spiSeverity<-read.table(file = "spitab.txt",header = T,sep = " ",stringsAsFactor
   as_tibble %>% 
   mutate(Index=as.factor(c(1:nrow(.))))
 
-gg.x.start<-as.Date("2016-01-01")
+gg.x.start<-as.Date("2016-11-01")
 gg.x.end  <-as.Date("2019-01-01")
 
 spi.rect<-tibble(x1=rep(gg.x.start,nrow(spiSeverity)),
@@ -226,31 +227,60 @@ subtab.all.fill<- filter(subtab.all,is.element(SCODE,codes))
 d.spei<-subtab.all.fill %>% dplyr::select(SCODE,Drought) %>% unnest
 
 d.spei2<-left_join(d.spei,spistats.inarea,by="SCODE") %>% 
-  unnest(InArea) %>% 
-  mutate(Name2=paste(Nome_dct,"-",SCODE)) %>% 
-  mutate(Name2=paste(Name2,"-",ALT,"m")) %>% 
+  unnest(InArea)  %>% 
+  mutate(Name2=paste(SCODE,"-",ALT,"m")) %>% 
   mutate(InArea=factor(InArea,levels=c("Val Venosta / Vinschgau District","Other Districts"))) %>% 
   dplyr::select(-c(Year,Month,LT_meanM,NS_sumM,PET,BAL,geometry)) %>% 
   gather(key="Indices",value=Value,SPEI,SPI)
 
-gg.x.start<-as.Date("2016-01-01")
+gg.x.start<-as.Date("2016-11-01")
 gg.x.end  <-as.Date("2019-01-01")
 
-gg.spei<-ggplot()+ theme_bw()+
-  geom_rect(data=spi.rect,aes(xmin=x1,xmax=x2,ymin=y1,ymax=y2,fill=Severity),alpha=.2)+
+gg.spei<-ggplot()+ theme_minimal()+
+  geom_rect(data=season.rect,aes(xmin=x1,xmax=x2,ymin=y1,ymax=y2,),fill="grey80")+
+  geom_rect(data=spi.rect,aes(xmin=x1,xmax=x2,ymin=y1,ymax=y2,fill=Severity),alpha=.2,col="white")+
   scale_fill_manual(values = spi.rect$col)+
-  geom_rect(data=season.rect,aes(xmin=x1,xmax=x2,ymin=y1,ymax=y2),fill=NA,col="black")+
   geom_line(data=d.spei2,aes(Date,Value,lty=Indices))+
   geom_point(data=d.spei2,aes(Date,Value,pch=Indices))+
   facet_wrap(InArea~Name2)+
-  scale_x_date(breaks = "3 months",limits=c(gg.x.start,gg.x.end),labels=date_format("%Y-%m"))+
+  scale_x_date(breaks = "2 months",limits=c(gg.x.start,gg.x.end),labels=date_format("%Y-%m"))+
   theme(axis.text.x = element_text(angle = 45, hjust = 1))+
   ylim(c(-3.5,3.5))+
-  ylab("SPI / SPEI values")+
-  labs(title="Drought indices in South Tyrol from 2016 to 2018")
+  ylab("SPI / SPEI values")
 
-ggsave(gg.spei,filename = "Paper2/SPEIplot_all_rev.png",device="png",width=13,height=9)
+ggsave(gg.spei,filename = "Paper2/SPEIplot_all_rev2.png",device="png",width=13,height=9)
 
+
+# Plot for just the VInschgau stations and one for each other District
+
+
+dspei.date<-d.spei2 %>% filter(Date>"2016-01-01")
+dspei.vin <-dspei.date %>% 
+  filter(Nome_dct =="Val Venosta") %>% 
+  dplyr::select(Date,ALT,District,Name2,Indices,Value)
+
+
+dspei.all <-dspei.date %>% filter(Nome_dct !="Val Venosta") %>% 
+  mutate(Name2="Mean Value all Stations") %>% 
+  group_by(Date,District,Name2,Indices) %>% 
+  dplyr::summarize(Value=mean(Value,na.rm=T)) %>% 
+  ungroup
+
+d.spei3<-bind_rows(dspei.vin,dspei.all)
+
+gg.spei<-ggplot()+ theme_minimal()+
+  geom_rect(data=season.rect,aes(xmin=x1,xmax=x2,ymin=y1,ymax=y2,),fill="grey80")+
+  geom_rect(data=spi.rect,aes(xmin=x1,xmax=x2,ymin=y1,ymax=y2,fill=Severity),alpha=.2,col="white")+
+  scale_fill_manual(values = spi.rect$col)+
+  geom_line(data=d.spei3,aes(Date,Value,lty=Indices))+
+  geom_point(data=d.spei3,aes(Date,Value,pch=Indices))+
+  facet_wrap(District~Name2)+
+  scale_x_date(breaks = "2 months",limits=c(gg.x.start,gg.x.end),labels=date_format("%Y-%m"))+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))+
+  ylim(c(-3.5,3.5))+
+  ylab("SPI / SPEI values")
+
+ggsave(gg.spei,filename = "Paper2/SPEIplot_districts.png",device="png",width=13,height=9)
 
 # Thematic Maps ---------------------------------------------------------
 # ** Site -----------------------------------------------------------------
