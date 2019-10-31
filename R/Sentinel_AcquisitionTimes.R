@@ -170,3 +170,42 @@ g2<-ggplot()+
 #   ggtitle("Sentinel 2 Tiles in the Large Alpine Convention")+
 #   scale_fill_distiller(palette = "Spectral")
 
+
+# Paper 2 - List of images ------------------------------------------------
+
+library("readr")
+s2list<-read_csv("C:/Users/MRossi/Documents/03_Data/01_RemSen/Sentinel/List/L2A_0101-3112_2016_2018_T32TPS_70_DEM_BRDF_20181023_reflbands.csv")
+
+s2list.red <- s2list %>% 
+  na.omit %>% 
+  select(ccp,sensing_time,L2A_10m_ReflBands) %>% 
+  mutate(IsImage=100) %>% 
+  mutate(Date=as_date(sensing_time)) %>% 
+  filter(Date>"2017-01-01") %>% 
+  mutate(Satellite=map_chr(L2A_10m_ReflBands,function(x){
+    
+    y<-basename(x)
+    y<-substr(y,1,3)
+    return(y)
+    
+  })) %>% 
+  group_by(Date,Satellite) %>% 
+  summarize(ccp=mean(ccp)) %>% 
+  ungroup %>% 
+  mutate(Year=year(Date))
+
+cr<-colorRampPalette(c("darkgreen","green","yellow","gold","red"))
+
+g1<-ggplot(s2list.red) + 
+  theme_classic()+
+  geom_bar(aes(Date,ccp,fill=ccp),stat = "identity",show.legend = F,width = 1) +
+  geom_point(aes(Date,ccp,pch=Satellite),cex=2)+
+  ylim(0,70) +
+  scale_x_date(date_breaks = "1 month")+
+  theme(text=element_text(family="sans"))+
+  theme(axis.text.x=element_text(angle=45,hjust=1))+
+  theme(legend.position = c(0.05,0.9))+
+  scale_fill_gradientn(colours=cr(100))+
+  ylab("Cloud Coverage (%)")
+  
+ggsave(g1,filename = "Images/Sentinel2_CloudCover.png",device="png",height=5,width=10)
