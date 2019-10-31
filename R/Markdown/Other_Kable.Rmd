@@ -149,4 +149,34 @@ kableExtra::kable_as_image(k1, filename = "Test")
 ```
 
 
+# Field Campaign Table
+
+```{r}
+
+fctable<-readRDS("../../tables/fieldcampaigntable.rds")
+
+fckable<-kable(fctable, format ="latex", linesep="",booktabs = T,escape = F ,align = "c") %>% 
+  kable_styling(latex_options = "scale_down") %>% 
+  collapse_rows(1:2,row_group_label_position = "stack") %>% 
+  add_header_above(c(" "=4,"Field Campaign"=3),align="c")
+
+kableExtra::kable_as_image(fckable, filename = "fctable")
+
+```
+
+
+# Indices Table
+
+```{r}
+
+sensors<-readRDS("../../tables/sensors.rds")
+
+senskable<-kable(sensors, format ="latex", linesep="",booktabs = T,escape = F ,align = "c") %>% 
+  add_header_above(c(" "=1,"Vegetation Indices"=6),align="c")
+kableExtra::kable_as_image(senskable, filename = "senstable")
+
+```
+
+
+
 
