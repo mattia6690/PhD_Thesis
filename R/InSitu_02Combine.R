@@ -4,13 +4,16 @@ source("R/BaseFunctions.R")
 write.outputs=F
 suffix<- format.Date(Sys.Date(),"%d%m%y")
 
+
 # Long Aggregation --------------------------------------------------------
 lf<-list.files(paste0(InSitu_dir,"/07_FieldCampaign17/02_Station/"),pattern=".csv",full.names=T)
 lf_short<-list.files(paste0(InSitu_dir,"/07_FieldCampaign17/02_Station/"),pattern=".csv")
 
+
 stats<-do.call(rbind,str_split(lf_short,"_"))[,1]
 aggr<-do.call(rbind,lapply(lf,read_csv))
 aggr$Date<-as.Date(sprintf("%06s",aggr$Date),"%d%m%y")
+
 
 if(write.outputs==T) write.RDSCSV(aggr,paste0(dir,"/","InSituMetrics1.csv"))
 
@@ -18,22 +21,25 @@ if(write.outputs==T) write.RDSCSV(aggr,paste0(dir,"/","InSituMetrics1.csv"))
 lf<-list.files(paste0(dirfield,"/03_DaySOS"),pattern=".csv",full.names=T)
 dir<-paste0(dirfield,"/","04_Combined/")
 
+
 list1<-suppressMessages(map(lf,read_csv))
 list2<-do.call(rbind,list1) %>% select(-X1)
 list2$Date<-as.Date(sprintf("%06s",list2$Date),"%d%m%y")
+
 
 if(write.outputs==T) write.RDSCSV(list2,paste0(dir,"/","InSituMetrics1_tidy.csv"))
 
 # Combination with ROI -----------------------------------------------
 list3<-list2 %>% tidyr::separate(.,OP1,c("OP1","Repetition"),sep="_") 
 
+
 insitu_raw<-list3 %>% 
   filter(OP2=="NDVI" & OP3==1)  %>% 
   group_by(Date,Station,Scale1,Scale2,OP1,OP2) %>%
   dplyr::summarise(.,Value=mean(Value)) %>% ungroup
 
-set<-insitu_raw %>% filter(Station!="P2") %>% arrange(Station)
 
+set<-insitu_raw %>% filter(Station!="P2") %>% arrange(Station)
 n1<-"D,A,B,C"
 n2<-"A,B,C,D"
 phenoletters<-paste0(n1,",",
@@ -41,6 +47,7 @@ phenoletters<-paste0(n1,",",
                      n1,",",
                      paste(rep(n2,11),collapse=","))
 phenoletters<-str_split(phenoletters,",")[[1]]
+
 
 set2<-set %>% 
   add_column(ROI=paste0(.$Station,"_",phenoletters)) %>% 
@@ -51,6 +58,7 @@ if(write.outputs==T) write.RDSCSV(lj1,paste0(dir,"/","InSituMetrics1_tidy_combin
 
 lj2<-left_join(insitu_raw,set2,by=c("Date","Station","OP1"))
 if(write.outputs==T) write.RDSCSV(lj2,paste0(dir,"/","InSituMetrics1_tidy_combined_ndvi"))
+
 
 # LAI tables --------------------------------------------------------------
 insitu.raw.all<-lj1 %>% 
@@ -84,18 +92,19 @@ tablelai   <- list.files(paste0(dirlai,"02_Combined/"),full.names = T,pattern = 
 tablelai2  <- bind_rows(lapply(tablelai,readRDS))
 tablelai3  <- dplyr::select(tablelai2,Date,Station,Scale1,Scale2,Prop1,Prop2,Prop3,Value) %>% 
   filter(Prop2=="Metrics") %>% 
-  mutate(Value=as.numeric(Value))
+  mutate(Value=as.numeric(Value)) %>% 
+  mutate(Year=year(Date))
 
 tablebio   <- list.files(paste0(dirbio,"02_Combined/"),full.names = T,pattern = "rds")
 tablebio2  <- bind_rows(lapply(tablebio,readRDS))
 tablebio3  <- dplyr::select(tablebio2,Date,Station,Scale1,Scale2,Prop1,Prop2,Prop3,Value) %>% 
-  mutate(Value=as.numeric(Value))
+  mutate(Value=as.numeric(Value)) %>% 
+  mutate(Year=year(Date))
 
 tableall   <- bind_rows(tablespec3,tablelai3,tablebio3)
 
 
 # Plot Bio and LAI --------------------------------------------------------
-
 
 Harvests<-rbind(c("Vimes1500","2017",yday(as_date("2017-07-03"))),
                 c("Vimes1500","2018",yday(as_date("2018-06-23")))) %>% 
@@ -137,3 +146,40 @@ g1<-ggplot(plotdat2.grow1,aes(DOY,Median,col=GrowingPeriod,pch=GrowingPeriod))+ 
   theme(legend.position="bottom")
 
 ggsave(g1,filename = "Paper2/BomassLAIplot1.png",width=12,height=7)
+
+
+
+
+# Chack Data --------------------------------------------------------------
+
+#LAI
+tlai1<- tablelai3 %>% filter(Prop3=="LAI") %>% filter(Station=="P2"|Station=="Vimes1500")
+
+nlai <- tlai1 %>% group_by(Station,Year) %>% dplyr::summarize(Samples=n())
+dlai <- tlai1 %>% group_by(Date,Station,Year) %>% dplyr::summarize(n=n()) 
+ndaylai<- dlai %>% group_by(Station,Year) %>% dplyr::summarize(Days=n())
+startstoplai<-dlai %>% group_by(Station,Year) %>% dplyr::summarize(Start=min(Date),End=max(Date))
+
+jnlai<-left_join(nlai,ndaylai,by = c("Station", "Year")) %>% 
+  left_join(.,startstoplai,by = c("Station", "Year")) %>% 
+  ungroup %>% 
+  add_column(Variable="LAI",.before=T)
+
+# Biomass
+tbio1 <- tablebio3 %>% filter(Prop3=="Wet")%>% filter(Station=="P2"|Station=="Vimes1500")
+
+nbio <- tbio1 %>% group_by(Station,Year) %>% dplyr::summarize(Samples=n())
+dbio <- tbio1 %>% group_by(Date,Station,Year) %>% dplyr::summarize(n=n()) 
+ndaybio<- dbio %>% group_by(Station,Year) %>% dplyr::summarize(Days=n())
+startstopbio<-dbio %>% group_by(Station,Year) %>% dplyr::summarize(Start=min(Date),End=max(Date))
+
+jnbio<-left_join(nbio,ndaybio,by = c("Station", "Year")) %>% 
+  left_join(.,startstopbio,by = c("Station", "Year")) %>% 
+  ungroup %>% 
+  add_column(Variable="Biomass",.before=T)
+
+#Join
+
+tab<-bind_rows(jnlai,jnbio)
+
+saveRDS(tab,file = "tables/fieldcampaigntable.rds")
