@@ -21,67 +21,138 @@ stations<-str_split(lf_short,"_") %>%
   unlist
 names<-c("Date","Station","Scale1","Scale2","OP1","OP2","OP3","Value")
 
-# bit oldschool
-lf.t1<-lf.t2<-list()
-for (i in 1:length(lf)){
-  
-  tab        <-suppressMessages(read_csv(lf[i],col_names = F))
-  lf.t1[[1]] <-tab %>% slice(-(1:4)) %>% select(1) %>% as.tibble
-  lf.t1[[2]] <-rep(stations[i],nrow(lf.t1[[1]])) %>% as.tibble
-  lf.t1[[3]] <-rep("MONALISA",nrow(lf.t1[[1]])) %>% as.tibble
-  lf.t1[[4]] <-rep("DECAGON",nrow(lf.t1[[1]])) %>% as.tibble
-  lf.t1[[5]] <-rep("Point",nrow(lf.t1[[1]])) %>% as.tibble
-  lf.t1[[6]] <-rep("NDVI",nrow(lf.t1[[1]])) %>% as.tibble
-  lf.t1[[7]] <-rep("Avg",nrow(lf.t1[[1]])) %>% as.tibble
-  lf.t1[[8]] <-tab[-(1:4),] %>% select(which(tab[2,]=="NDVI_Avg"))
-  lf.t2[[i]] <-do.call(cbind.data.frame, lf.t1) %>% setNames(names)
-  
-}
 
-mnls.tidy.raw <-lf.t2 %>% 
-  do.call(rbind.data.frame,.) %>% 
-  as.tibble %>%
+
+
+data2<-lapply(lf,function(i){
+  
+  print(i)
+  # Tidy the data
+  station    <- strsplit(basename(i),"_")[[1]][1]
+  tab        <- suppressMessages(read_csv(i,skip=1,col_names = F))
+  tab_slice  <- tab %>% slice(-(1:3))
+  
+  data <- tab_slice  %>% 
+    dplyr::select(Date=1)%>% 
+    mutate(Station=station) %>% 
+    mutate(Scale1="MONALISA") %>% 
+    mutate(Scale2="Decagon") %>% 
+    mutate(OP1="Point")
+  
+  
+  #* Add NDVI ----
+  dataN<- mutate(data,OP2="NDVI",OP3="Avg")
+  
+  if(any(unlist(tab[1,])=="NDVI_Avg")){
+    
+    ndvi<- tab_slice %>% dplyr::select(which(tab[1,]=="NDVI_Avg"))
+    
+  } else {
+    
+    redUp   <- tab_slice %>% dplyr::select(which(unlist(tab[1,])=="NDVI_UpRed_Avg")) %>% unlist %>% as.numeric
+    redDown <- tab_slice %>% dplyr::select(which(unlist(tab[1,])=="NDVI_Down_Red_Avg")) %>% unlist %>%as.numeric
+    nirUp   <- tab_slice %>% dplyr::select(which(unlist(tab[1,])=="NDVI_UpNIR_Avg")) %>% unlist %>%as.numeric
+    nirDown <- tab_slice %>% dplyr::select(which(unlist(tab[1,])=="NDVI_Down_NIR_Avg")) %>% unlist %>%as.numeric
+    
+    if(length(redUp)==0) {
+      
+      parUp <- tab_slice %>% dplyr::select(which(unlist(tab[1,])=="PAR_Up_Avg")) %>% unlist%>% as.numeric
+      redUp <- nirUp <-parUp
+      
+      if(length(redUp)==0) redUp<-nirUp <- rep(1,length(redDown))
+      
+    }
+    
+    ndvi <- ((nirDown/nirUp)-(redDown/redUp))/((redDown/redUp)+(nirDown/nirUp))
+    
+  }
+  
+  #* Add PRI ----
+  dataP<- mutate(data,OP2="PRI",OP3="Avg")
+  if(any(unlist(tab[1,])=="PRI_Avg")){
+    
+    pri<- tab_slice %>% dplyr::select(which(tab[1,]=="PRI_Avg"))
+    
+  } else {
+    
+    redUp   <- tab_slice %>% dplyr::select(which(tab[1,]=="PRI_Up_Green_Avg")) %>% unlist %>%as.numeric
+    redDown <- tab_slice %>% dplyr::select(which(tab[1,]=="PRI_Down_Green_Avg")) %>% unlist %>%as.numeric
+    nirUp   <- tab_slice %>% dplyr::select(which(tab[1,]=="PRI_Up_Yellow_Avg")) %>% unlist %>%as.numeric
+    nirDown <- tab_slice %>% dplyr::select(which(tab[1,]=="PRI_Down_Yellow_Avg")) %>% unlist %>%as.numeric
+    
+    if(length(redUp)==0) {
+      
+      parUp <- tab_slice %>% dplyr::select(which(unlist(tab[1,])=="PAR_Up_Avg")) %>% unlist %>%as.numeric
+      redUp <- nirUp <-parUp
+      
+      if(length(redUp)==0) redUp<-nirUp <- rep(1,length(redDown))
+      
+    }
+    
+    pri <- ((nirDown/nirUp)-(redDown/redUp))/((redDown/redUp)+(nirDown/nirUp))
+    
+  }
+  
+  # Add NDVI and PRI to data frame
+  data.pri  <- mutate(dataP,Value=as.numeric(unlist(pri)))
+  data.ndvi <- mutate(dataN,Value=as.numeric(unlist(ndvi)))
+  
+  final<-bind_rows(data.pri,data.ndvi)
+  return(final)
+  
+})
+
+
+tableall<-do.call(bind_rows,data2) %>%
+  filter(!is.nan(Value)) %>% 
   mutate(Date=as.POSIXct(Date,format="%Y-%m-%d %H:%M")) %>% 
-  separate(Date,c("Date","Time")," ") %>% 
-  mutate(Date=as_date(Date)) %>%
-  mutate(Time=as.hms(Time)) %>% 
-  mutate(Value=as.numeric(Value)) %>% 
-  filter(!is.nan(Value))
+  mutate(Date2=as_date(Date)) %>% 
+  mutate(Time=as.hms(Date)) %>% 
+  filter(Time>=as.hms(timerange[1]) & Time<=as.hms(timerange[2]))
 
-saveRDS(mnls.tidy.raw,paste0(MonalisaDir,"02_Tables/Monalisa_NDVI_raw.rds"))
-if(writeCSV==T) write.csv(mnls.tidy.raw,paste0(MonalisaDir,"02_Tables/Monalisa_NDVI_raw.csv"))
+# ggplot(tableall,aes(Date,Value,color=Station))+
+#   geom_line()+
+#   facet_grid(vars(OP2),vars(Station))
+
+saveRDS(tableall,paste0(MonalisaDir,"02_Tables/Monalisa_NDVI_Paper2.rds"))
+if(writeCSV==T) write.csv(mnls.tidy.raw,paste0(MonalisaDir,"02_Tables/Monalisa_NDVI_Paper2.csv"))
 
 
-# Filter Time -------------------------------------------------------------
-mnls.raw.time<-mnls.tidy.raw %>% 
-  filter(Time>=as.hms(timerange[1]) & Time<=as.hms(timerange[2])) %>% 
-  filter(Date>=as.Date(daterange[1]) & Date<=as.Date(daterange[2]))
-
-mnls.raw.group<-mnls.raw.time %>% 
-  group_by(Date,Station,Scale1,Scale2,OP1,OP2,OP3) %>% nest
+mnls.raw.group<-tableall %>% 
+  group_by(Date2,Station,Scale1,Scale2,OP1,OP2,OP3) %>% nest
 
 # Filter Date -------------------------------------------------------------
 mnls.outlier.date<- mnls.raw.group %>% 
   mutate(data=map(data,function(i){
     
-    gDens <-.getDensityLimits(i$Value)
-    lof   <- i %>% select(Value) %>% lofactor(., k=3)
+    val<-na.omit(i$Value)
     
-    dat1   <- i %>% 
-      add_column(.,Lower=gDens[1]) %>% 
-      add_column(.,Upper=gDens[4]) %>% 
-      add_column(.,LOF=lof)
+    if(length(val)>5){
+      
+      gDens <- .getDensityLimits(val)
+      lof   <- lofactor(val, k=3)
+      
+      dat1   <- i %>% 
+        add_column(.,Lower=gDens[1]) %>% 
+        add_column(.,Upper=gDens[4]) %>% 
+        add_column(.,LOF=lof)
+    } else{
+          
+      dat1 <- NA
+      
+    }
     
     return(cbind(i,dat1))
     
   }))
 
-mnls.outlier.date1<-mnls.outlier.date %>% unnest %>% 
+mnls.outlier.date1<-mnls.outlier.date %>% 
+  unnest %>% 
   filter(Value>Lower) %>% 
   filter(Value<Upper) %>% 
   filter(LOF<1.5)
 
-g.f1<-ggplot(mnls.outlier.date1,aes(Date,Value))+geom_point()+facet_wrap(.~Station)
+g.f1<-ggplot(mnls.outlier.date1,aes(Date2,Value))+geom_point()+facet_grid(vars(OP2),vars(Station))
 
 # Filter Moving Window -------------------------------------------------------------
 print("Moving Window Filtering")
@@ -146,4 +217,4 @@ mnls.percentile<- error.mw %>%
   dplyr::summarise(Value=quantile(Value,.9))
 
 g.f2<-ggplot(mnls.percentile,aes(Date,Value))+geom_point()+facet_wrap(.~Station)
-saveRDS(mnls.percentile,paste0(Monalisa17Dir,"Monalisa_NDVI_filtered_MovingWindow_100818.rds"))
+saveRDS(mnls.percentile,paste0(Monalisa17Dir,"Monalisa_NDVI_filtered_MovingWindow_311019.rds"))
