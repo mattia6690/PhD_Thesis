@@ -5,8 +5,8 @@ timecol <-1
 startcol<-2
 headNames<-c("Key","Unit","Statistic")
 
-b2<-read_csv("C:/Users/MRossi/Documents/03_Data/03_InSitu/08_SWC/B2_2017-2018.csv",skip = 1,col_names = F)
-p2<-read_csv("C:/Users/MRossi/Documents/03_Data/03_InSitu/08_SWC/P2_2017-2018.csv",skip = 1,col_names = F)
+b2<-read_csv("C:/Users/MRossi/Documents/03_Data/03_InSitu/05_SWC/B2_2017-2018.csv",skip = 1,col_names = F)
+p2<-read_csv("C:/Users/MRossi/Documents/03_Data/03_InSitu/05_SWC/P2_2017-2018.csv",skip = 1,col_names = F)
 
 t1<-readSWCAlpEnv(b2,Station = "Vimes1500",
                   headRows = 3, headNames = c("Key","Unit","Statistic"),
@@ -15,6 +15,12 @@ t1<-readSWCAlpEnv(b2,Station = "Vimes1500",
 t2<-readSWCAlpEnv(p2,Station = "P2",
                   headRows = 3, headNames = c("Key","Unit","Statistic"),
                   TimeCol = 1, StartCol = 2)
+
+swc.rect<-tibble(x1=c(as.Date("2017-04-01"),as.Date("2018-04-01")),
+                 x2=c(as.Date("2017-10-01"),as.Date("2018-10-01")),
+                 y1=c(0,0),
+                 y2=c(.5,.5))
+
 
 
 complete<-rbind(t1,t2)
@@ -83,3 +89,39 @@ gg.swc<-ggplot()+ theme_light() +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
 ggsave(gg.swc,filename="Paper2/SWCplot_Lines.png",device="png",height=6,width=12,units="in")
+
+
+
+
+
+# Delete 20cm Vimes1500 & Mean --------------------------------------------
+
+
+
+swc.tab.v2<-swc.tab %>% 
+  filter(!(Station=="Vimes1500" & Depth=="20 cm" & Plot=="C")) %>% 
+  group_by(Date,Station,Statistic,Unit,MetricS,Depth) %>% 
+  dplyr::summarize(Mean=mean(Mean,na.rm=T))
+
+saveRDS(swc.tab.v2,"Paper2/SWC_daily.rds")
+
+swc.interpol<- swc.tab.v2 %>% 
+  group_by(Station,Depth) %>% 
+  nest
+
+gg.swc2<-ggplot()+ theme_light() +
+  geom_rect(data=swc.rect,aes(xmin=x1,xmax=x2,ymin=y1,ymax=y2),fill="grey80",col=NA,alpha=.6)+
+  geom_point(data=swc.tab.v2,aes(Date,Mean),alpha=.1)+
+  geom_smooth(data=swc.tab.v2,aes(Date,Mean),method = lm, formula = y ~ splines::bs(x, 35), se = FALSE)+
+  facet_grid(vars(Station),vars(Depth))+
+  ylab(ylab)+
+  labs(title="Soil Water Content in the Research Area",
+       subtitle= "Spline Interpolated Time Series 2017 and 2018")+
+  scale_x_date(breaks = "2 months", date_labels= "%Y-%m")+
+  ylim(c(0,0.5))+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+ggsave(gg.swc2,filename="Paper2/SWCplot_Lines_day.png",device="png",height=6,width=12,units="in")
+
+
+

@@ -31,7 +31,7 @@ date.interval <-as.Date(paste(min.spi.year,"01","01",sep="-")) %--% as.Date(past
 
 
 # SPI
-spiSeverity<-read.table(file = "spitab.txt",header = T,sep = " ",stringsAsFactors = F) %>% 
+spiSeverity<-read.table(file = "tables/spitab.txt",header = T,sep = " ",stringsAsFactors = F) %>% 
   as_tibble %>% 
   mutate(Index=as.factor(c(1:nrow(.))))
 
@@ -127,7 +127,7 @@ d.spi.raw<- data.spread.year %>%
     
     x %>% 
       group_by(Year,Month) %>% 
-      summarize(Value=sum(N_Sum,na.rm = F)) %>% 
+      dplyr::summarize(Value=sum(N_Sum,na.rm = F)) %>% 
       ungroup
     
   }))
@@ -206,7 +206,7 @@ subtab.all<-data %>%
     
     tab<- x %>% 
       group_by(Year,Month) %>% 
-      summarize(LT_meanM=mean(LT_Mean,na.rm = T),
+      dplyr::summarize(LT_meanM=mean(LT_Mean,na.rm = T),
                 NS_sumM=sum(N_Sum,na.rm = T)) %>% 
       ungroup %>% 
       as.data.frame()
@@ -281,7 +281,7 @@ gg.spei<-ggplot()+ theme_minimal()+
   ylab("SPI / SPEI values")
 
 ggsave(gg.spei,filename = "Paper2/SPEIplot_districts.png",device="png",width=13,height=9)
-
+saveRDS(dspei.vin,file = "rds/DroughtIndicesVI.rds")
 # Thematic Maps ---------------------------------------------------------
 # ** Site -----------------------------------------------------------------
 

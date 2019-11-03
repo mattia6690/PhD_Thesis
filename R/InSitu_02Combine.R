@@ -86,20 +86,22 @@ if(write.outputs==T) write.RDSCSV(insitu.raw.bio,paste0(Workspacedir,"07_Product
 # Load Datasets -----------------------------------------------------------
 tablespec  <- list.files(paste0(dirhyp,"02_Combined/"),full.names = T,pattern = "rds")
 tablespec2 <- bind_rows(lapply(tablespec,readRDS))
-tablespec3 <- dplyr::select(tablespec2,Date,Station,Scale1,Scale2,Prop1,Prop2,Prop3,Value)
+tablespec3 <- dplyr::select(tablespec2,Date,Station,Scale1,Scale2,Prop1,Prop2,Prop3,Value) %>% 
+  mutate(Year=lubridate::year(Date))
+  
 
 tablelai   <- list.files(paste0(dirlai,"02_Combined/"),full.names = T,pattern = "rds")
 tablelai2  <- bind_rows(lapply(tablelai,readRDS))
 tablelai3  <- dplyr::select(tablelai2,Date,Station,Scale1,Scale2,Prop1,Prop2,Prop3,Value) %>% 
   filter(Prop2=="Metrics") %>% 
   mutate(Value=as.numeric(Value)) %>% 
-  mutate(Year=year(Date))
+  mutate(Year=lubridate::year(Date))
 
 tablebio   <- list.files(paste0(dirbio,"02_Combined/"),full.names = T,pattern = "rds")
 tablebio2  <- bind_rows(lapply(tablebio,readRDS))
 tablebio3  <- dplyr::select(tablebio2,Date,Station,Scale1,Scale2,Prop1,Prop2,Prop3,Value) %>% 
   mutate(Value=as.numeric(Value)) %>% 
-  mutate(Year=year(Date))
+  mutate(Year=lubridate::year(Date))
 
 tableall   <- bind_rows(tablespec3,tablelai3,tablebio3)
 
@@ -123,29 +125,90 @@ plotdat<-tableall %>%
 
 plotdat2<-plotdat %>% 
   group_by(Station,Date,Scale1,Scale2,Prop3,Tit) %>% 
-  dplyr::summarize(Median=median(Value,na.rm = T)) %>% 
+  dplyr::summarize(Mean=mean(Value,na.rm = T)) %>% 
   ungroup %>% 
   mutate(GrowingPeriod= ifelse(Date %within% intervals[1],"2017-Grow1",
                                ifelse(Date %within% intervals[2],"2018-Grow1",0))) %>% 
   mutate(DOY=yday(Date))
 
 
-plotdat2.grow1<-plotdat2 %>% filter(GrowingPeriod!=0)
+plotdat2.grow1<-plotdat2 %>% 
+  filter(GrowingPeriod!=0) %>% 
+  mutate(Indicator=map2_chr(Scale2,Prop3,function(x,y){
+    
+    if(y=="Wet") r<-paste(x,"1-",y,"(in g)")
+    if(y=="Dry") r<-paste(x,"2-",y,"(in g)")
+    if(y=="Water Percentage") r<-paste(x,"3-",y,"(in %)")
+    if(y=="LAI") r<-paste(x,"-",y,"in sqm/sqm")
+    return(r)
+    
+  }))
 
 
 pdu<-plotdat2.grow1$Tit %>% unique
 Harvests<-tidyr::crossing(Harvests,Tit=pdu)
+h17<-filter(Harvests,Harvest==2017)
+h18<-filter(Harvests,Harvest==2018)
 
-g1<-ggplot(plotdat2.grow1,aes(DOY,Median,col=GrowingPeriod,pch=GrowingPeriod))+ theme_bw() +
+g1<-ggplot(plotdat2.grow1,aes(DOY,Mean,col=GrowingPeriod,pch=Station))+ theme_bw() +
   scale_color_manual(values=c("grey70","black"))+
-  facet_wrap(Station~Tit,scales="free_y",ncol=4)+
+  facet_wrap(~Indicator,scales="free_y",ncol=4)+
   geom_point()+
   geom_line()+
-  geom_vline(data=Harvests,aes(xintercept=DOY,lty=Harvest))+
-  labs(title="Biomass sampling during the first growing period in 2017 and 2018")+ 
+  geom_vline(data=h17,aes(xintercept=DOY),col="grey70",lty=2)+
+  geom_vline(data=h18,aes(xintercept=DOY),col="black",lty=2)+
   theme(legend.position="bottom")
 
-ggsave(g1,filename = "Paper2/BomassLAIplot1.png",width=12,height=7)
+ggsave(g1,filename = "Paper2/BiomassLAIplot2.png",width=10,height=5)
+saveRDS(plotdat2.grow1,"rds/BiomassLAI.rds")
+
+
+
+# Correlation LAI, Biomass
+
+
+plotdat2.grow2<- plotdat2.grow1 %>% 
+  mutate(Short=map2_chr(Scale2,Prop3,function(x,y){
+    
+    if(y=="Water Percentage") y="Water"
+    if(y=="LAI") return(x)
+    ret<-paste(x,y)
+    return(ret)
+    
+    
+  }))
+
+cplotdata<-plotdat2.grow2 %>% 
+  dplyr::select(Station,GrowingPeriod,Date,Short,Mean) %>% 
+  spread(Short,Mean) %>% 
+  select(-Date) %>% 
+  group_by(Station,GrowingPeriod) %>% 
+  nest %>% 
+  mutate(cor=map(data,function(x){
+    
+    c<-round(cor(x,use="pairwise.complete.obs"),2)
+    utree<-get_upper_tri(c)
+    utree.melt<-melt(get_upper_tri(c),na.rm=T)
+    return(utree.melt)
+    
+  })) %>% 
+  unnest(cor)
+cplotdata2<-cplotdata[-which(cplotdata$Var1==cplotdata$Var2),] 
+
+corplot<-ggplot(data = cplotdata2, aes(x=Var2, y=Var1, fill=value)) + 
+  facet_grid(vars(Station),vars(GrowingPeriod))+
+  geom_tile(color = "white")+
+  geom_text(aes(Var2, Var1, label = value))+
+  scale_fill_gradient2(low = "blue", high = "green", mid = "red", 
+                       midpoint = 0, limit = c(-1,1), space = "Lab", 
+                       name="Pearson\nCorrelation") +
+  theme_classic()+ 
+  theme(axis.text.x = element_text(angle = 25,hjust = 1))+
+  coord_fixed()+
+  ylab("")+xlab("")+
+  theme(legend.position="bottom")
+
+ggsave(corplot,filename="Paper2/Correlation_heatmap_all.png",width = 5,height = 5.5)
 
 
 

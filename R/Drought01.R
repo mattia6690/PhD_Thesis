@@ -363,8 +363,8 @@ timecol <-1
 startcol<-2
 headNames<-c("Key","Unit","Statistic")
 
-b2<-read_csv("C:/Users/MRossi/Documents/03_Data/03_InSitu/08_SWC/B2_2017-2018.csv",skip = 1,col_names = F)
-p2<-read_csv("C:/Users/MRossi/Documents/03_Data/03_InSitu/08_SWC/P2_2017-2018.csv",skip = 1,col_names = F)
+b2<-read_csv("C:/Users/MRossi/Documents/03_Data/03_InSitu/05_SWC/B2_2017-2018.csv",skip = 1,col_names = F)
+p2<-read_csv("C:/Users/MRossi/Documents/03_Data/03_InSitu/05_SWC/P2_2017-2018.csv",skip = 1,col_names = F)
 
 t1<-readSWCAlpEnv(b2,Station = "Vimes1500",
               headRows = 3, headNames = c("Key","Unit","Statistic"),
@@ -386,7 +386,7 @@ atib<-complete %>%
 
 atib.gr1<- atib %>% 
   group_by(Date,Station,Key,Statistic, Unit) %>% 
-  summarize(Mean=mean(Value),
+  dplyr::summarize(Mean=mean(Value),
             Max=max(Value),
             Min=min(Value),
             Stdev=sd(Value),

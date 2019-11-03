@@ -12,7 +12,7 @@ source("R/BaseFunctions.R")
 ### 1. Read Data ----
 
 aggr2<-read_csv(file = paste0(MetricsDir,"InSituMetrics.csv"))
-stats<-aggr2 %>% select(Station) %>% unique %>% unlist %>% as.character
+stats<-aggr2 %>% select(FOI) %>% unique %>% unlist %>% as.character
 
 # Plot configs
 startdsipdate <-as.Date("2017-05-01")

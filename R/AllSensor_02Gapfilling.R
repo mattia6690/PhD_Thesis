@@ -60,7 +60,7 @@ gapfill.db<-gpdb.ts %>%
 testFF<-gapfill.db %>% tidyr::gather(key = "Interpolation",value="InterpolationValue",Linear,Spline,Stineman)
 
 ggplot(testFF,aes(Date,InterpolationValue))+
-  facet_grid(vars(Station),vars(Sensor))+
+  facet_grid(vars(Station),vars(Scale2))+
   geom_line(aes(col=Interpolation))+
   geom_point(aes(Date,Original))
 
@@ -92,7 +92,7 @@ ces(ts1)
 # Plot the Interpolated Time series
 
 ggplot(gapfill.db,aes(Date,Value,col=Interpolated)) +
-  facet_wrap(.~Sensor)+
+  facet_wrap(.~Scale2)+
   geom_point()
 
 

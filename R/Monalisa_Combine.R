@@ -107,8 +107,8 @@ tableall<-do.call(bind_rows,data2) %>%
   filter(!is.nan(Value)) %>% 
   mutate(Date=as.POSIXct(Date,format="%Y-%m-%d %H:%M")) %>% 
   mutate(Date2=as_date(Date)) %>% 
-  mutate(Time=as.hms(Date)) %>% 
-  filter(Time>=as.hms(timerange[1]) & Time<=as.hms(timerange[2]))
+  mutate(Time=as_hms(Date)) %>% 
+  filter(Time>=as_hms(timerange[1]) & Time<=as_hms(timerange[2]))
 
 # ggplot(tableall,aes(Date,Value,color=Station))+
 #   geom_line()+
@@ -152,7 +152,7 @@ mnls.outlier.date1<-mnls.outlier.date %>%
   filter(Value<Upper) %>% 
   filter(LOF<1.5)
 
-g.f1<-ggplot(mnls.outlier.date1,aes(Date2,Value))+geom_point()+facet_grid(vars(OP2),vars(Station))
+g.f1<-ggplot(mnls.outlier.date1,aes(Date2,Value))+geom_line()+facet_grid(vars(OP2),vars(Station))
 
 # Filter Moving Window -------------------------------------------------------------
 print("Moving Window Filtering")
@@ -160,10 +160,15 @@ print("Moving Window Filtering")
 t.win<-4
 input<-mnls.outlier.date1
 stats<- input$Station %>% unique %>% as.character %>% as.tibble %>% setNames("station")
-dates<- input$Date 
+dates<- input$Date2 
+
+
+seq1<- seq(min(dates),max(dates)-t.win,1)
+seq2<- seq(min(dates)+t.win,max(dates),1)
 
 # Create Moving Window Timespans
 mw.combi<-stats %>% 
+  
   mutate(dates=map(station,function(x,d=dates,w=t.win){
     
     seq1<- seq(min(d),max(d)-w,1) %>% as.tibble
@@ -173,48 +178,100 @@ mw.combi<-stats %>%
   })) %>% unnest
 
 # Filter Station and Dates per Moving Window Iteration
-mw.filter<-mw.combi %>% 
-  mutate(data=pmap(list(station,start,end),function(x,y,z,i=input){
+mw.data<-input %>% group_by(Station,Scale1,Scale2,OP1,OP2,OP3) %>% nest
 
-    i %>% filter(Station==x) %>% filter(Date>=y) %>% filter(Date<=z) %>% return()
+# Go through the grouped stuff
+mw.filter<- mw.data %>% 
+  mutate(error=map(data,function(x){
 
+    # Do the moving window
+    lp<-map2(seq1,seq2,function(s1,s2){
+      
+      if(is.element(s2,x$Date2)){
+        
+        dat<-filter(x,Date2>=s1 & Date2<=s2)
+        
+        if(nrow(dat)   < 3) return(rep(1,nrow(dat)))
+        if(length(dat) < 3) return(rep(1,nrow(dat)))
+        
+        
+        sel<-dat %>% select(Value) %>% unlist 
+        if(all(is.nan(sel))) return(rep(1,nrow(dat)))
+        
+        limits<-.getDensityLimits(sel,method="max")
+        err<-(sel<limits[1] | sel>limits[3] | sel>limits[4])*1
+        if(length(err)==0) err<-rep(0,nrow(dat))
+        
+        dat$MWLOF<-err
+        
+        return(dat)
+        
+      }
+    })
+    
+    y<-do.call(rbind,lp)
+    return(y)
+    
   }))
 
-# Filter for Outliers in Density
-mw.stat<-mw.filter %>% mutate(error=map(data,function(dat) {
-  
-  if(nrow(dat) < 3) return(rep(1,nrow(dat)))
-  sel<-dat %>% select(Value) %>% unlist 
-  if(all(is.nan(sel))) return(rep(1,nrow(dat)))
-  
-  limits<-.getDensityLimits(sel,method="max")
-  
-  err<-(sel<limits[1] | sel>limits[3] | sel>limits[4])*1
-  if(length(err)==0) err<-rep(0,nrow(dat))
-  return(err)
-  
-}))
 
-# Unnest the Data
-mw.comb1<-mw.stat %>% 
-  mutate(error.mw=map2(data,error,function(x,y) bind_cols(select(x,Date),as.tibble(y)))) %>% 
-  select(data,error.mw) %>% 
-  unnest
+mw.filter2<- mw.filter %>% 
+  select(-data) %>% 
+  unnest %>% 
+  group_by(Date,Date2,Station,Scale1,Scale2,OP1,OP2,OP3) %>% 
+  dplyr::summarise(Value=quantile(Value,.9),MWLOF=sum(MWLOF)) %>% 
+  ungroup %>% 
+  arrange(Date) %>% 
+  filter(MWLOF<4)
 
-# Calculate the Sum of Iterations classified as outlier
-mw.comb2<-mw.comb1 %>% 
-  group_by(Date,Time,Station,Scale1,Scale2,OP1,OP2,OP3) %>% 
-  dplyr::summarise(error.mw=sum(value)) %>% 
+
+g.mw1<-ggplot(mw.filter2,aes(Date,Value))+geom_point()+facet_grid(vars(OP2),vars(Station))
+saveRDS(mw.filter2,paste0(Monalisa17Dir,"Monalisa_NDVI_filtered_MovingWindow_311019.rds"))
+
+mw.filter2.day<-mw.filter2 %>% 
+  mutate(Date2=as_date(Date)) %>% 
+  group_by(Date2,Station,Scale1,Scale2,OP1,OP2,OP3) %>% 
+  dplyr::summarize(Value=mean(Value)) %>% 
   ungroup
 
-# Apply the Treshold when an observation is considered an outlier
-error.mw<-left_join(input,mw.comb2) %>% filter(error.mw==4)
-g.mw1<-ggplot(error.mw,aes(Date,Value))+geom_point()+facet_wrap(.~Station)
 
-# 90 Percentile NDVI ------------------------------------------------------
-mnls.percentile<- error.mw %>% 
-  group_by(Date,Station,Scale1,Scale2,OP1,OP2,OP3) %>% 
-  dplyr::summarise(Value=quantile(Value,.9))
-
-g.f2<-ggplot(mnls.percentile,aes(Date,Value))+geom_point()+facet_wrap(.~Station)
-saveRDS(mnls.percentile,paste0(Monalisa17Dir,"Monalisa_NDVI_filtered_MovingWindow_311019.rds"))
+saveRDS(mw.filter2.day,paste0(Monalisa17Dir,"Monalisa_NDVI_filtered_MovingWindow_daily_311019.rds"))
+# 
+# # Filter for Outliers in Density
+# mw.stat<-mw.filter %>% mutate(error=map(data,function(dat) {
+#   
+#   if(nrow(dat) < 3) return(rep(1,nrow(dat)))
+#   sel<-dat %>% select(Value) %>% unlist 
+#   if(all(is.nan(sel))) return(rep(1,nrow(dat)))
+#   
+#   limits<-.getDensityLimits(sel,method="max")
+#   
+#   err<-(sel<limits[1] | sel>limits[3] | sel>limits[4])*1
+#   if(length(err)==0) err<-rep(0,nrow(dat))
+#   return(err)
+#   
+# }))
+# 
+# # Unnest the Data
+# mw.comb1<-mw.stat %>% 
+#   mutate(error.mw=map2(data,error,function(x,y) bind_cols(select(x,Date),as.tibble(y)))) %>% 
+#   select(data,error.mw) %>% 
+#   unnest
+# 
+# # Calculate the Sum of Iterations classified as outlier
+# mw.comb2<-mw.comb1 %>% 
+#   group_by(Date,Time,Station,Scale1,Scale2,OP1,OP2,OP3) %>% 
+#   dplyr::summarise(error.mw=sum(value)) %>% 
+#   ungroup
+# 
+# # Apply the Treshold when an observation is considered an outlier
+# error.mw<-left_join(input,mw.comb2) %>% filter(error.mw==4)
+# g.mw1<-ggplot(error.mw,aes(Date,Value))+geom_point()+facet_wrap(.~Station)
+# 
+# # 90 Percentile NDVI ------------------------------------------------------
+# mnls.percentile<- error.mw %>% 
+#   group_by(Date,Station,Scale1,Scale2,OP1,OP2,OP3) %>% 
+#   dplyr::summarise(Value=quantile(Value,.9))
+# 
+# g.f2<-ggplot(mnls.percentile,aes(Date,Value))+geom_point()+facet_wrap(.~Station)
+# saveRDS(mnls.percentile,paste0(Monalisa17Dir,"Monalisa_NDVI_filtered_MovingWindow_311019.rds"))
