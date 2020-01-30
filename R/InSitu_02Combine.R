@@ -108,14 +108,34 @@ tableall   <- bind_rows(tablespec3,tablelai3,tablebio3)
 
 # Plot Bio and LAI --------------------------------------------------------
 
-Harvests<-rbind(c("Vimes1500","2017",yday(as_date("2017-07-03"))),
-                c("Vimes1500","2018",yday(as_date("2018-06-23")))) %>% 
-  as_tibble %>% 
-  setNames(c("Station","Harvest","DOY")) %>% 
-  mutate(DOY=as.numeric(DOY))
+Harvests17<- tibble::enframe(c("2017-07-03","2017-09-04","2017-09-18"),value="Date",name=NULL) 
+Harvests18<- tibble::enframe(c("2018-06-23","2018-09-08"),value="Date",name=NULL) 
+Harvests<-bind_rows(Harvests17,Harvests18) %>% 
+  mutate(Date=as_date(Date)) %>% 
+  mutate(Station="Vimes1500") %>% 
+  mutate(DOY=yday(Date)) %>% 
+  mutate(Year=as.character(year(Date)))
+  
 
-intervals<-c("2017-01-01" %--% "2017-07-03",
-             "2018-01-01" %--% "2018-06-23")
+
+# Harvests<-rbind(c("Vimes1500","2017",yday(as_date("2017-07-03"))),
+#                 c("Vimes1500","2018",yday(as_date("2018-06-23")))) %>% 
+#   as_tibble %>% 
+#   setNames(c("Station","Harvest","DOY")) %>% 
+#   mutate(DOY=as.numeric(DOY))
+
+intervals<-c(as_date("2017-01-01",tz="MEST") %--% Harvests$Date[1],
+             Harvests$Date[1] %--% Harvests$Date[2],
+             Harvests$Date[2] %--% Harvests$Date[3],
+             Harvests$Date[2] %--% as_date("2017-12-31"),
+             as_date("2018-01-01") %--% Harvests$Date[4],
+             Harvests$Date[4] %--% Harvests$Date[5],
+             Harvests$Date[2] %--% as_date("2018-12-31"))
+
+intervals2<-bind_cols(Inter=intervals,
+                      Periods=c(1,2,3,4,1,2,3),
+                      Year=c(2017,2017,2017,2017,2018,2018,2018)) %>% 
+  mutate(GrowingPeriod=paste0(Year,"-Grow",Periods))
 
 
 plotdat<-tableall %>%
@@ -123,44 +143,45 @@ plotdat<-tableall %>%
   filter((Scale2=="Biomass" & Prop3!="Error") | (Scale2=="Leaf Area" & Prop3=="LAI")) %>% 
   mutate(Tit=paste(Scale2,"-",Prop3))
 
-plotdat2<-plotdat %>% 
-  group_by(Station,Date,Scale1,Scale2,Prop3,Tit) %>% 
-  dplyr::summarize(Mean=mean(Value,na.rm = T)) %>% 
-  ungroup %>% 
-  mutate(GrowingPeriod= ifelse(Date %within% intervals[1],"2017-Grow1",
-                               ifelse(Date %within% intervals[2],"2018-Grow1",0))) %>% 
-  mutate(DOY=yday(Date))
+# plotdat2<-plotdat %>% 
+#   group_by(Station,Date,Scale1,Scale2,Prop3,Tit) %>% 
+#   dplyr::summarize(Mean=mean(Value,na.rm = T)) %>% 
+#   ungroup %>% 
+#   mutate(GrowingPeriod= ifelse(Date %within% intervals[1],"2017-Grow1",
+#                                ifelse(Date %within% intervals[2],"2018-Grow1",0))) %>% 
+#   mutate(DOY=yday(Date))
 
-
-plotdat2.grow1<-plotdat2 %>% 
-  filter(GrowingPeriod!=0) %>% 
-  mutate(Indicator=map2_chr(Scale2,Prop3,function(x,y){
+plotdat.growphase<- plotdat %>%
+  group_by(Date,Station,Scale1,Scale2,Prop3,Tit) %>%
+  dplyr::summarize(Mean=mean(Value,na.rm=T),
+                   Min=min(Value),
+                   Max=max(Value)) %>% 
+  mutate(GrowingPeriod=map_chr(Date,function(x,i=intervals2){
     
-    if(y=="Wet") r<-paste(x,"1-",y,"(in g)")
-    if(y=="Dry") r<-paste(x,"2-",y,"(in g)")
-    if(y=="Water Percentage") r<-paste(x,"3-",y,"(in %)")
-    if(y=="LAI") r<-paste(x,"-",y,"in sqm/sqm")
-    return(r)
+    test<-min(which(x %within% i$Inter))
+    ret<-i$GrowingPeriod[test]
+    return(ret)
     
   }))
 
 
-pdu<-plotdat2.grow1$Tit %>% unique
-Harvests<-tidyr::crossing(Harvests,Tit=pdu)
-h17<-filter(Harvests,Harvest==2017)
-h18<-filter(Harvests,Harvest==2018)
+plotdat2.grow1<-plotdat.growphase %>% 
+  mutate(Indicator=map2_chr(Scale2,Prop3,function(x,y){
+    
+    if(y=="Wet") r<-paste(x,"1-",y,"(g)")
+    if(y=="Dry") r<-paste(x,"2-",y,"(g)")
+    if(y=="Water Percentage") r<-paste(x,"3-","Water Content","(%)")
+    if(y=="LAI") r<-paste(x,"-",y)
+    return(r)
+    
+  })) %>% 
+  mutate(DOY=yday(Date)) %>% 
+  mutate(Year=as.character(year(Date))) %>% 
+  ungroup
 
-g1<-ggplot(plotdat2.grow1,aes(DOY,Mean,col=GrowingPeriod,pch=Station))+ theme_bw() +
-  scale_color_manual(values=c("grey70","black"))+
-  facet_wrap(~Indicator,scales="free_y",ncol=4)+
-  geom_point()+
-  geom_line()+
-  geom_vline(data=h17,aes(xintercept=DOY),col="grey70",lty=2)+
-  geom_vline(data=h18,aes(xintercept=DOY),col="black",lty=2)+
-  theme(legend.position="bottom")
 
 ggsave(g1,filename = "Paper2/BiomassLAIplot2.png",width=10,height=5)
-saveRDS(plotdat2.grow1,"rds/BiomassLAI.rds")
+saveRDS(plotdat2.grow1,"rds/BiomassLAI3.rds")
 
 
 
@@ -218,31 +239,28 @@ ggsave(corplot,filename="Paper2/Correlation_heatmap_all.png",width = 5,height = 
 #LAI
 tlai1<- tablelai3 %>% filter(Prop3=="LAI") %>% filter(Station=="P2"|Station=="Vimes1500")
 
-nlai <- tlai1 %>% group_by(Station,Year) %>% dplyr::summarize(Samples=n())
+nlai <- tlai1 %>% group_by(Station,Year) %>% dplyr::summarize(SamplesLAI=n())
 dlai <- tlai1 %>% group_by(Date,Station,Year) %>% dplyr::summarize(n=n()) 
-ndaylai<- dlai %>% group_by(Station,Year) %>% dplyr::summarize(Days=n())
+ndaylai<- dlai %>% group_by(Station,Year) %>% dplyr::summarize(DaysLAI=n())
 startstoplai<-dlai %>% group_by(Station,Year) %>% dplyr::summarize(Start=min(Date),End=max(Date))
 
 jnlai<-left_join(nlai,ndaylai,by = c("Station", "Year")) %>% 
   left_join(.,startstoplai,by = c("Station", "Year")) %>% 
-  ungroup %>% 
-  add_column(Variable="LAI",.before=T)
+  ungroup 
 
 # Biomass
 tbio1 <- tablebio3 %>% filter(Prop3=="Wet")%>% filter(Station=="P2"|Station=="Vimes1500")
 
-nbio <- tbio1 %>% group_by(Station,Year) %>% dplyr::summarize(Samples=n())
+nbio <- tbio1 %>% group_by(Station,Year) %>% dplyr::summarize(SamplesBIO=n())
 dbio <- tbio1 %>% group_by(Date,Station,Year) %>% dplyr::summarize(n=n()) 
-ndaybio<- dbio %>% group_by(Station,Year) %>% dplyr::summarize(Days=n())
+ndaybio<- dbio %>% group_by(Station,Year) %>% dplyr::summarize(DaysBIO=n())
 startstopbio<-dbio %>% group_by(Station,Year) %>% dplyr::summarize(Start=min(Date),End=max(Date))
 
 jnbio<-left_join(nbio,ndaybio,by = c("Station", "Year")) %>% 
   left_join(.,startstopbio,by = c("Station", "Year")) %>% 
-  ungroup %>% 
-  add_column(Variable="Biomass",.before=T)
-
+  ungroup
 #Join
 
-tab<-bind_rows(jnlai,jnbio)
+tab<-left_join(jnlai,jnbio)
 
 saveRDS(tab,file = "tables/fieldcampaigntable.rds")
