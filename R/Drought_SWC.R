@@ -1,5 +1,5 @@
 # Drought Computation Alpine Environment
-
+source("R/BaseFunctions.R")
 headRows<-3
 timecol <-1
 startcol<-2
@@ -34,7 +34,7 @@ atib<-complete %>%
 
 atib.gr1<- atib %>% 
   group_by(Date,Station,Key,Statistic, Unit) %>% 
-  summarize(Mean=mean(Value,na.rm=T),
+  dplyr::summarize(Mean=mean(Value,na.rm=T),
             Max=max(Value),
             Min=min(Value),
             Stdev=sd(Value),
@@ -101,13 +101,30 @@ ggsave(gg.swc,filename="Paper2/SWCplot_Lines.png",device="png",height=6,width=12
 swc.tab.v2<-swc.tab %>% 
   filter(!(Station=="Vimes1500" & Depth=="20 cm" & Plot=="C")) %>% 
   group_by(Date,Station,Statistic,Unit,MetricS,Depth) %>% 
-  dplyr::summarize(Mean=mean(Mean,na.rm=T))
+  dplyr::summarize(Mean=mean(Mean,na.rm=T)) %>% 
+  ungroup
 
 saveRDS(swc.tab.v2,"Paper2/SWC_daily.rds")
 
 swc.interpol<- swc.tab.v2 %>% 
-  group_by(Station,Depth) %>% 
-  nest
+  group_by(Station,Depth,Statistic,Unit) %>% 
+  nest %>% 
+  mutate(Interpolated=map(data,function(x){
+    
+    sp<-lm(x$Mean ~ splines::bs(x$Date, 35))
+    sp.pred<- as.numeric(predict(sp))
+    
+    x<-na.omit(x)
+    y<-bind_cols(Date=x$Date,SWC=sp.pred)
+    return(y)
+    
+    
+  })) %>% 
+  select(-data) %>% 
+  unnest
+
+saveRDS(swc.tab.v2,"Paper2/SWC_daily_interpol.rds")
+
 
 gg.swc2<-ggplot()+ theme_light() +
   geom_rect(data=swc.rect,aes(xmin=x1,xmax=x2,ymin=y1,ymax=y2),fill="grey80",col=NA,alpha=.6)+
