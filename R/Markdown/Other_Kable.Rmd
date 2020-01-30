@@ -153,12 +153,16 @@ kableExtra::kable_as_image(k1, filename = "Test")
 
 ```{r}
 
-fctable<-readRDS("../../tables/fieldcampaigntable.rds")
+fctable<-readRDS("../../tables/fieldcampaigntable.rds") %>% 
+  select(Station,Year,
+         Samples=SamplesLAI,Days=DaysLAI,
+         Samples=SamplesBIO,Days=DaysBIO,
+         Start,End
+         )
 
-fckable<-kable(fctable, format ="latex", linesep="",booktabs = T,escape = F ,align = "c") %>% 
-  kable_styling(latex_options = "scale_down") %>% 
-  collapse_rows(1:2,row_group_label_position = "stack") %>% 
-  add_header_above(c(" "=4,"Field Campaign"=3),align="c")
+fckable<-kable(fctable, format ="latex",booktabs = T,align = "c") %>% 
+  kable_styling(latex_options = "scale_down") %>%
+  add_header_above(c(" "=2,"Leaf Area Index"=2,"Biomass"=2,"Field Campaign Dates"=2),align="c")
 
 kableExtra::kable_as_image(fckable, filename = "fctable")
 
@@ -169,10 +173,11 @@ kableExtra::kable_as_image(fckable, filename = "fctable")
 
 ```{r}
 
-sensors<-readRDS("../../tables/sensors.rds")
+sensors<-readRDS("../../tables/sensors.rds") %>% 
+  select(-PRI)
 
 senskable<-kable(sensors, format ="latex", linesep="",booktabs = T,escape = F ,align = "c") %>% 
-  add_header_above(c(" "=1,"Vegetation Indices"=6),align="c")
+  add_header_above(c(" "=1,"Vegetation Indices"=5),align="c")
 kableExtra::kable_as_image(senskable, filename = "senstable")
 
 ```
