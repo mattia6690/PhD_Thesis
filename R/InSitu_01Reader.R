@@ -4,7 +4,6 @@ source("R/BaseFunctions.R")
 # 2. Files ----
 
 lf_full<-list.files(paste0(dirfield,"00_Raw"),pattern =".csv",full.names = T)
-
 metadir.hyp<-"C:/Users/MRossi/Documents/03_Data/03_InSitu/05_HyperSpec/Combined/"
 # 3. Computation ----
 
@@ -42,6 +41,11 @@ for(i in 1:length(lf_full)){
 
   if(nrow(hy.data)>0){
     
+    # FIrst the combined values
+    dunnest<-hy.data %>% dplyr::select(-Metadata) %>% unnest
+    if(nrow(dunnest)>0) saveRDS(dunnest,file = paste0(dirhyp,"01b_Selected/",foi,"_",format(date,"%Y%m%d"),".rds"))
+    
+    
     dt<-hy.data$Data
     PRI_1  <-map_dbl(dt,function(x) hypindices(x,c(530,534),c(568,572),stat="PRI"))
     PRI_2  <-map_dbl(dt,function(x) hypindices(x,c(520,544),c(558,582),stat="PRI"))
@@ -65,13 +69,48 @@ for(i in 1:length(lf_full)){
   print("Calculating LAI")
   lai.data<-getVals.lai(data.raw,date,directory = dirlai)
   
+  if(nrow(lai.data)>0) saveRDS(lai.data,file = paste0(dirlai,"02_Combined/",foi,"_",format(date,"%Y%m%d"),".rds"))
+  
   #* 3.3 Biomass ----
   print("Calculating Biomass")
   bio.data<-getVals.biomass(data.raw,date)
 
   # Save the data
-  if(nrow(lai.data)>0) saveRDS(lai.data,file = paste0(dirlai,"02_Combined/",foi,"_",format(date,"%Y%m%d"),".rds"))
+  
   if(nrow(bio.data)>0) saveRDS(bio.data,file = paste0(dirbio,"02_Combined/",foi,"_",format(date,"%Y%m%d"),".rds"))
+  
+  # Add the coordinates
+  
+  coords<-data.raw %>% 
+    filter(Type=="Location") %>% 
+    select(-Type) %>% 
+    spread(key=Name,value = Acquisition) %>% 
+    mutate(Lat=as.numeric(Lat)) %>% 
+    mutate(Lon=as.numeric(Lon))
+  
+  nas<-is.na(coords$Lat)
+  
+  if(any(isTRUE(nas))){
+    
+    coords_lai<-data %>% 
+      group_by(Date,Station,Scale1,Scale2,Prop1,Prop2,Prop3) %>% 
+      dplyr::summarize(Value=mean(Value)) %>% 
+      spread(Prop3,Value) %>% 
+      ungroup
+    
+  }
+  
+  laibiogps<-rbind(bio.data,lai.data) %>% left_join(.,coords)
+  laibiogps2<-st_as_sf(laibiogps,coords=c("Lon","Lat")) %>% 
+    st_set_crs(4326)
+  
+  name<- paste0(InSitu_dir,"04e_LaiBioGps/",foi,"_",format(date,"%Y%m%d"),".shp")
+  
+  if(!file.exists(name)){
+    
+    if(nrow(laibiogps2)>0) st_write(laibiogps2,dsn = name,update = T,quiet = T)
+    
+  }
   
 }
 
