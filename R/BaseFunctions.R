@@ -1,7 +1,8 @@
 # 1. Initialize Packages ----
 
 library("devtools")
-install_github("mattia6690/Mfunctions");library(Mfunctions)
+#install_github("mattia6690/Mfunctions")
+library(Mfunctions)
 loadandinstall("raster")
 loadandinstall("plyr")
 loadandinstall("dplyr")
@@ -312,7 +313,7 @@ getVals.lai<-function(data,date,directory,verbose=F){
 }
 
 # Get Biomass Data
-getVals.biomass<-function(data,date,directory,verbose=F){
+getVals.biomass<-function(data.raw,date,verbose=F){
   
   #Prepare
   scale2<-"Biomass"
