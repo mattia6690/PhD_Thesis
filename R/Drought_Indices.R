@@ -29,7 +29,6 @@ min.spi.year  <-1979
 
 date.interval <-as.Date(paste(min.spi.year,"01","01",sep="-")) %--% as.Date(paste(max.spi.year,"12","31",sep="-"))
 
-
 # SPI
 spiSeverity<-read.table(file = "tables/spitab.txt",header = T,sep = " ",stringsAsFactors = F) %>% 
   as_tibble %>% 
@@ -45,8 +44,8 @@ spi.rect<-tibble(x1=rep(gg.x.start,nrow(spiSeverity)),
                  Severity=factor(spiSeverity$Value,levels = unique(spiSeverity$Value)),
                  col=spiSeverity$Color)
 
-# Growing Seasons
 
+# Growing Seasons
 season.rect<-tibble(x1=c(as.Date("2017-04-01"),as.Date("2018-04-01")),
                     x2=c(as.Date("2017-10-01"),as.Date("2018-10-01")),
                     y1=c(-3,-3),
@@ -74,7 +73,7 @@ BzDCT      <-st_read("C:/Users/MRossi/Documents/03_Data/Shapes/00_General/Distri
   mutate(Nome_dct=NAME_I)
 BzDCT2 <- BzDCT %>% dplyr::select(BEZ,Nome_dct,District,InArea)
 STstations2 <- st_join(STstations,BzDCT2)
-vinschgau<-filter(BzDCT2,InArea=="Val Venosta / Vinschgau District")
+vinschgau<-filter(BzDCT2,InArea=="Val Venosta / Vinschgau District") %>% st_zm
 
 MaziaSHP   <- st_read("Y:/Workspaces/RosM/Extent/Mazia.shp") %>% st_transform(4326)
 
@@ -257,7 +256,8 @@ ggsave(gg.spei,filename = "Paper2/SPEIplot_all_rev2.png",device="png",width=13,h
 dspei.date<-d.spei2 %>% filter(Date>"2016-01-01")
 dspei.vin <-dspei.date %>% 
   filter(Nome_dct =="Val Venosta") %>% 
-  dplyr::select(Date,ALT,District,Name2,Indices,Value)
+  dplyr::select(SCODE,Date,ALT,District,Name2,Indices,Value) %>% 
+  filter(SCODE=="02200MS"| SCODE=="02500MS")
 
 
 dspei.all <-dspei.date %>% filter(Nome_dct !="Val Venosta") %>% 
@@ -266,7 +266,8 @@ dspei.all <-dspei.date %>% filter(Nome_dct !="Val Venosta") %>%
   dplyr::summarize(Value=mean(Value,na.rm=T)) %>% 
   ungroup
 
-d.spei3<-bind_rows(dspei.vin,dspei.all)
+#d.spei3<-bind_rows(dspei.vin,dspei.all)
+d.spei3<-dspei.vin
 
 gg.spei<-ggplot()+ theme_minimal()+
   geom_rect(data=season.rect,aes(xmin=x1,xmax=x2,ymin=y1,ymax=y2,),fill="grey80")+
@@ -274,14 +275,14 @@ gg.spei<-ggplot()+ theme_minimal()+
   scale_fill_manual(values = spi.rect$col)+
   geom_line(data=d.spei3,aes(Date,Value,lty=Indices))+
   geom_point(data=d.spei3,aes(Date,Value,pch=Indices))+
-  facet_wrap(District~Name2)+
+  facet_wrap(.~Name2)+
   scale_x_date(breaks = "2 months",limits=c(gg.x.start,gg.x.end),labels=date_format("%Y-%m"))+
   theme(axis.text.x = element_text(angle = 45, hjust = 1))+
   ylim(c(-3.5,3.5))+
   ylab("SPI / SPEI values")
 
-ggsave(gg.spei,filename = "Paper2/SPEIplot_districts.png",device="png",width=13,height=9)
-saveRDS(dspei.vin,file = "rds/DroughtIndicesVI.rds")
+ggsave(gg.spei,filename = "Paper2/SPEIplot_districts_only1500.png",device="png",width=10,height=5)
+saveRDS(dspei.vin,file = "rds/DroughtIndicesVI_only1500.rds")
 # Thematic Maps ---------------------------------------------------------
 # ** Site -----------------------------------------------------------------
 
