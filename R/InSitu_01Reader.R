@@ -90,13 +90,20 @@ for(i in 1:length(lf_full)){
   
   nas<-is.na(coords$Lat)
   
-  if(any(isTRUE(nas))){
+  if(any(nas==T)){
+    
+    wh<-which(nas==T)
     
     coords_lai<-data %>% 
       group_by(Date,Station,Scale1,Scale2,Prop1,Prop2,Prop3) %>% 
       dplyr::summarize(Value=mean(Value)) %>% 
       spread(Prop3,Value) %>% 
-      ungroup
+      ungroup %>% 
+      rename(Lat=GPSLAT) %>% 
+      rename(Lon=GPSLONG)
+    
+    coords$Lat[wh]<-coords_lai$Lat[wh]
+    coords$Lon[wh]<-coords_lai$Lon[wh]
     
   }
   
@@ -114,6 +121,12 @@ for(i in 1:length(lf_full)){
   
 }
 
+
+lf<-list.files(paste0(InSitu_dir,"04e_LaiBioGps/"),full.names = T,pattern = ".shp")
+read<-lapply(lf,st_read)
+
+allfiles<-do.call(rbind,read) %>% filter(Station=="P2" | Station=="Vimes1500")
+st_write(allfiles,"RoM_fieldwork_Mazia_1718_4Euge.shp")
 
 #   
 #     select(contains("ID")) %>% 
