@@ -3,6 +3,7 @@
 .Rhistory
 .RData
 .Ruserdata
+.gitignore
 /Images
 /Paper2
 R/Old
@@ -11,5 +12,6 @@ R/04_Other/
 Presentation/
 rds/
 tables/
+shapes/
 Thumbs.db
 
